@@ -1,7 +1,5 @@
-"use strict";
-
-const Ajv = require("ajv");
-const { ALLOWED_NODE_ENVS } = require("#constants");
+import Ajv from "ajv";
+import { ALLOWED_NODE_ENVS } from "#constants";
 
 const ajv = new Ajv({ allErrors: true });
 
@@ -9,18 +7,9 @@ const envSchema = {
   type: "object",
   required: ["PORT", "HOSTNAME", "NODE_ENV"],
   properties: {
-    PORT: {
-      type: "string",
-      pattern: "^[0-9]+$",
-    },
-    HOSTNAME: {
-      type: "string",
-      minLength: 1,
-    },
-    NODE_ENV: {
-      type: "string",
-      enum: ALLOWED_NODE_ENVS,
-    },
+    PORT: { type: "string", pattern: "^[0-9]+$" },
+    HOSTNAME: { type: "string", minLength: 1 },
+    NODE_ENV: { type: "string", enum: ALLOWED_NODE_ENVS },
   },
   additionalProperties: true,
 };
@@ -43,7 +32,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   process.exit(1);
 }
 
-module.exports = {
+export default {
   PORT: port,
   HOSTNAME: process.env.HOSTNAME.trim(),
   NODE_ENV: process.env.NODE_ENV,

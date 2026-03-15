@@ -1,9 +1,7 @@
-"use strict";
-
-const { createServer } = require("node:http");
-const config = require("#config");
-const { logRequest } = require("#utils/logger");
-const { router } = require("#routes");
+import { createServer } from "node:http";
+import config from "#config";
+import { logRequest } from "#utils/logger";
+import { router } from "#routes";
 
 const server = createServer(async (req, res) => {
   const method = req.method;

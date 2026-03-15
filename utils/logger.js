@@ -1,8 +1,6 @@
-"use strict";
+import config from "#config";
 
-const config = require("#config");
-
-function logRequest(method, url, statusCode) {
+export function logRequest(method, url, statusCode) {
   const level =
     statusCode >= 500 ? "ERROR" : statusCode >= 400 ? "WARN" : "INFO";
   if (config.IS_DEV || statusCode >= 400) {
@@ -11,5 +9,3 @@ function logRequest(method, url, statusCode) {
     );
   }
 }
-
-module.exports = { logRequest };

@@ -1,5 +1,3 @@
-"use strict";
-
 let DEVICES = [
   { id: 1, device: "Smart Lamp", status: "on", room: "Kitchen" },
   { id: 2, device: "Smart Thermostat", status: "off", room: "Living Room" },
@@ -38,4 +36,4 @@ const remove = (id) => {
   return DEVICES.length < before;
 };
 
-module.exports = { getAll, getById, create, update, replace, remove };
+export { getAll, getById, create, update, replace, remove };

@@ -1,7 +1,5 @@
-"use strict";
-
-const Ajv = require("ajv");
-const { ALLOWED_STATUSES } = require("#constants");
+import Ajv from "ajv";
+import { ALLOWED_STATUSES } from "#constants";
 
 const ajv = new Ajv({ allErrors: true });
 
@@ -60,7 +58,7 @@ const validateReplace = ajv.compile(replaceSchema);
 const validateQuery = ajv.compile(querySchema);
 const validateParams = ajv.compile(paramsSchema);
 
-function validate(validateFn, data) {
+export function validate(validateFn, data) {
   const valid = validateFn(data);
   if (!valid) {
     return validateFn.errors.map((e) =>
@@ -70,11 +68,10 @@ function validate(validateFn, data) {
   return null;
 }
 
-module.exports = {
+export {
   validateCreate,
   validatePatch,
   validateReplace,
   validateQuery,
   validateParams,
-  validate,
 };

@@ -1,6 +1,4 @@
-"use strict";
-
-function readBody(req) {
+export function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
     req.on("data", (chunk) => (body += chunk.toString()));
@@ -14,5 +12,3 @@ function readBody(req) {
     req.on("error", reject);
   });
 }
-
-module.exports = { readBody };
