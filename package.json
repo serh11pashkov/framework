@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "setup": "cd cjs-challenge && npm install && cd ../esm-challenge && npm install",
-    "start:cjs": "cd cjs-challenge && npm start",
-    "start:esm": "cd esm-challenge && npm start"
+    "setup": "cd cjs && npm install && cd ../esm && npm install",
+    "start:cjs": "cd cjs && npm start",
+    "start:esm": "cd esm && npm start"
   }
 }
