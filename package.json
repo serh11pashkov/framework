@@ -1,0 +1,43 @@
+{
+  "name": "smart-home-api",
+  "version": "1.0.0",
+  "description": "Smart Home Devices REST API — Lab 3",
+  "main": "app.js",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "imports": {
+    "#config": "./config/index.js",
+    "#constants": "./constants/index.js",
+    "#controllers": "./controllers/deviceController.js",
+    "#routes": "./routes/deviceRoutes.js",
+    "#validators": "./validators/deviceSchema.js",
+    "#data": "./data/devices.js",
+    "#utils/logger": "./utils/logger.js",
+    "#utils/bodyParser": "./utils/bodyParser.js"
+  },
+  "scripts": {
+    "start": "node --env-file=.env app.js",
+    "predev": "npm run check",
+    "dev": "nodemon --env-file=.env app.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run format:check"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "dotenv": "^17.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "globals": "^17.4.0",
+    "nodemon": "^3.1.0",
+    "prettier": "^3.0.0"
+  }
+}
