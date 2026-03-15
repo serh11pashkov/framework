@@ -1,5 +1,4 @@
- 
-const config   = require('./config/env');
+const config = require('./config/env');
 const buildApp = require('./app');
 const userRepository = require('./repositories/user.repository');
 

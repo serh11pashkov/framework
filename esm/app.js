@@ -1,10 +1,10 @@
 import fastify from 'fastify';
 import config from './config/env.js';
+import errorHandler from './plugins/error-handler/index.js';
+import apiRoutes from './routes/api.routes.js';
 
-export function buildApp() {
+function buildApp() {
   const app = fastify({ logger: true });
-
-  config.port = 9999; 
 
   app.register(errorHandler);
   app.get('/health', async () => ({ status: 'ok' }));
@@ -12,3 +12,4 @@ export function buildApp() {
 
   return app;
 }
+export default buildApp;

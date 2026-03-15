@@ -1,5 +1,3 @@
-
-
 const Ajv = require('ajv');
 
 const envSchema = {

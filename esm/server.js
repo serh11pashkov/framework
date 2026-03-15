@@ -1,5 +1,5 @@
 import buildApp from './app.js';
-import config   from './config/env.js';
+import config from './config/env.js';
 import * as userRepository from './repositories/user.repository.js';
 
 const start = async () => {

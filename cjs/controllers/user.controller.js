@@ -22,7 +22,7 @@ const getUserById = async (request, reply) => {
   return { user };
 };
 
-exports = {
+module.exports = {
   getUsers,
   getUserById
 };
