@@ -2,3 +2,5 @@
 node_modules/
 ~$*.docx
 *.tmp
+/esm/
+/cjs/
