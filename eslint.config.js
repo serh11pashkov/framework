@@ -8,9 +8,7 @@ export default [
   prettier,
   {
     languageOptions: {
-      globals: {
-        ...globals.node,
-      },
+      globals: { ...globals.node },
     },
     plugins: {
       prettier: prettierPlugin,
@@ -19,6 +17,14 @@ export default [
       "prettier/prettier": "error",
       "no-unused-vars": "warn",
       "no-console": "off",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "MemberExpression[object.name='process'][property.name='env']",
+          message: "Use fastify.config instead of process.env",
+        },
+      ],
     },
   },
   {

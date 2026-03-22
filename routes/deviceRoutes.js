@@ -1,27 +1,161 @@
 import * as ctrl from "#controllers";
+import {
+  createBodySchema,
+  patchBodySchema,
+  replaceBodySchema,
+  querySchema,
+  paramsSchema,
+  deviceResponseSchema,
+  devicesListResponseSchema,
+  deviceProperties,
+} from "#schemas/device";
 
-const ID_PATTERN = /^\/devices\/(\d+)$/;
+export async function deviceRoutes(fastify) {
+  fastify.get(
+    "/health",
+    {
+      schema: {
+        response: {
+          200: {
+            type: "object",
+            properties: { status: { type: "string" } },
+          },
+        },
+      },
+    },
+    ctrl.getHealth,
+  );
 
-export async function router(req, res, send, parsedUrl) {
-  const { method } = req;
-  const { pathname } = parsedUrl;
-  const idMatch = pathname.match(ID_PATTERN);
-  const id = idMatch ? parseInt(idMatch[1]) : null;
+  fastify.get(
+    "/health/details",
+    {
+      onRequest: async (request, reply) => {
+        if (request.headers["x-api-key"] !== fastify.config.ADMIN_API_KEY)
+          throw reply.unauthorized("Invalid or missing API key");
+      },
+      schema: {
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              pid: { type: "integer" },
+              nodeVersion: { type: "string" },
+              platform: { type: "string" },
+              uptime: { type: "number" },
+              memoryUsage: {
+                memoryUsage: {
+                  type: "object",
+                  properties: {
+                    rss: { type: "number" },
+                    heapTotal: { type: "number" },
+                    heapUsed: { type: "number" },
+                    external: { type: "number" },
+                    arrayBuffers: { type: "number" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    ctrl.getHealthDetails,
+  );
 
-  if (method === "GET" && pathname === "/health")
-    return ctrl.getHealth(req, res, send);
-  if (method === "GET" && pathname === "/devices")
-    return ctrl.getDevices(req, res, send, parsedUrl);
-  if (method === "GET" && idMatch)
-    return ctrl.getDeviceById(req, res, send, id);
-  if (method === "POST" && pathname === "/devices")
-    return ctrl.createDevice(req, res, send);
-  if (method === "PATCH" && idMatch)
-    return ctrl.patchDevice(req, res, send, id);
-  if (method === "PUT" && idMatch)
-    return ctrl.replaceDevice(req, res, send, id);
-  if (method === "DELETE" && idMatch)
-    return ctrl.deleteDevice(req, res, send, id);
+  fastify.get(
+    "/devices",
+    {
+      schema: {
+        querystring: querySchema,
+        response: { 200: devicesListResponseSchema },
+      },
+    },
+    ctrl.getDevices,
+  );
 
-  return send(res, 404, { error: "Route not found" });
+  fastify.get(
+    "/devices/:id",
+    {
+      schema: {
+        params: paramsSchema,
+        response: { 200: deviceResponseSchema },
+      },
+    },
+    ctrl.getDeviceById,
+  );
+
+  fastify.post(
+    "/devices",
+    {
+      schema: {
+        body: createBodySchema,
+        response: {
+          201: {
+            type: "object",
+            properties: {
+              message: { type: "string" },
+              device: { type: "object", properties: deviceProperties },
+            },
+          },
+        },
+      },
+    },
+    ctrl.createDevice,
+  );
+
+  fastify.patch(
+    "/devices/:id",
+    {
+      schema: {
+        params: paramsSchema,
+        body: patchBodySchema,
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              message: { type: "string" },
+              device: { type: "object", properties: deviceProperties },
+            },
+          },
+        },
+      },
+    },
+    ctrl.patchDevice,
+  );
+
+  fastify.put(
+    "/devices/:id",
+    {
+      schema: {
+        params: paramsSchema,
+        body: replaceBodySchema,
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              message: { type: "string" },
+              device: { type: "object", properties: deviceProperties },
+            },
+          },
+        },
+      },
+    },
+    ctrl.replaceDevice,
+  );
+
+  fastify.delete(
+    "/devices/:id",
+    {
+      schema: {
+        params: paramsSchema,
+        response: {
+          200: {
+            type: "object",
+            properties: { message: { type: "string" } },
+          },
+        },
+      },
+    },
+    ctrl.deleteDevice,
+  );
 }

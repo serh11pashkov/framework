@@ -5,35 +5,33 @@ let DEVICES = [
   { id: 4, device: "Smart Camera", status: "on", room: "Kitchen" },
 ];
 
-const getAll = () => DEVICES;
+export const getAll = () => DEVICES;
 
-const getById = (id) => DEVICES.find((d) => d.id === id);
+export const getById = (id) => DEVICES.find((d) => d.id === id);
 
-const create = (deviceData) => {
-  const lastId = DEVICES.length > 0 ? DEVICES[DEVICES.length - 1].id : 0;
-  const newDevice = { id: lastId + 1, ...deviceData };
-  DEVICES.push(newDevice);
-  return newDevice;
+export const create = (data) => {
+  const id = DEVICES.length > 0 ? DEVICES[DEVICES.length - 1].id + 1 : 1;
+  const device = { id, ...data };
+  DEVICES.push(device);
+  return device;
 };
 
-const update = (id, updates) => {
+export const update = (id, updates) => {
   const index = DEVICES.findIndex((d) => d.id === id);
   if (index === -1) return null;
   DEVICES[index] = { ...DEVICES[index], ...updates };
   return DEVICES[index];
 };
 
-const replace = (id, deviceData) => {
+export const replace = (id, data) => {
   const index = DEVICES.findIndex((d) => d.id === id);
   if (index === -1) return null;
-  DEVICES[index] = { id, ...deviceData };
+  DEVICES[index] = { id, ...data };
   return DEVICES[index];
 };
 
-const remove = (id) => {
+export const remove = (id) => {
   const before = DEVICES.length;
   DEVICES = DEVICES.filter((d) => d.id !== id);
   return DEVICES.length < before;
 };
-
-export { getAll, getById, create, update, replace, remove };

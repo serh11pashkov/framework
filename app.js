@@ -1,69 +1,50 @@
-import { createServer } from "node:http";
-import config from "#config";
-import { logRequest } from "#utils/logger";
-import { router } from "#routes";
+import Fastify from "fastify";
+import fastifyEnv from "@fastify/env";
+import fastifyHelmet from "@fastify/helmet";
+import fastifyCors from "@fastify/cors";
+import fastifySensible from "@fastify/sensible";
+import { envSchema } from "./schemas/env.schema.js";
+import { deviceRoutes } from "./routes/deviceRoutes.js";
 
-const server = createServer(async (req, res) => {
-  const method = req.method;
-  const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
-  const { pathname } = parsedUrl;
+export const buildApp = async () => {
+  // eslint-disable-next-line no-restricted-syntax
+  const NODE_ENV = process.env.NODE_ENV;
 
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-
-  const send = (response, status, body) => {
-    logRequest(method, pathname, status);
-    response.statusCode = status;
-    response.end(JSON.stringify(body));
-  };
-
-  try {
-    await router(req, res, send, parsedUrl);
-  } catch (err) {
-    send(res, 400, { error: err.message || "Bad Request" });
-  }
-});
-
-function gracefulShutdown(signal) {
-  process.stdout.write(`[shutdown] ${signal} received\n`);
-  const timer = setTimeout(() => {
-    process.stderr.write("[shutdown] timeout — force exit 1\n");
-    process.exit(1);
-  }, 10_000).unref();
-
-  server.close((err) => {
-    clearTimeout(timer);
-    if (err) {
-      process.stderr.write(`[shutdown] error: ${err.message}\n`);
-      process.exit(1);
-    }
-    process.stdout.write("[shutdown] closed — exit 0\n");
-    process.exit(0);
+  const fastify = Fastify({
+    logger: {
+      level: NODE_ENV === "production" ? "error" : "info",
+      transport:
+        NODE_ENV !== "production" ? { target: "pino-pretty" } : undefined,
+    },
   });
-}
 
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("uncaughtException", (err) => {
-  process.stderr.write(
-    `${new Date().toISOString()} | ERROR | uncaughtException | ${err.stack}\n`,
-  );
-  gracefulShutdown("uncaughtException");
-});
-process.on("unhandledRejection", (reason) => {
-  const msg = reason instanceof Error ? reason.stack : String(reason);
-  process.stderr.write(
-    `${new Date().toISOString()} | ERROR | unhandledRejection | ${msg}\n`,
-  );
-  gracefulShutdown("unhandledRejection");
-});
+  await fastify.register(fastifyEnv, { schema: envSchema, dotenv: true });
 
-server.listen(config.PORT, config.HOSTNAME, () => {
-  console.log(`Server running at http://${config.HOSTNAME}:${config.PORT}/`);
-  console.log("  GET    /health");
-  console.log("  GET    /devices?room=Kitchen");
-  console.log("  GET    /devices/:id");
-  console.log("  POST   /devices");
-  console.log("  PATCH  /devices/:id");
-  console.log("  PUT    /devices/:id");
-  console.log("  DELETE /devices/:id");
-});
+  await fastify.register(fastifyHelmet, { global: true });
+
+  await fastify.register(fastifyCors, {
+    origin:
+      fastify.config.NODE_ENV === "production" ? "https://example.com" : "*",
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
+  });
+
+  await fastify.register(fastifySensible);
+
+  fastify.setErrorHandler((error, request, reply) => {
+    fastify.log.error({ err: error, method: request.method, url: request.url });
+
+    reply.status(error.statusCode ?? 500).send({
+      statusCode: error.statusCode ?? 500,
+      error: error.name,
+      message: error.message,
+    });
+  });
+
+  await fastify.register(deviceRoutes);
+
+  fastify.addHook("onClose", async (instance) => {
+    instance.log.info("Server closed gracefully");
+  });
+
+  return fastify;
+};

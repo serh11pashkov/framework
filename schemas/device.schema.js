@@ -1,9 +1,13 @@
-import Ajv from "ajv";
 import { ALLOWED_STATUSES } from "#constants";
 
-const ajv = new Ajv({ allErrors: true });
+export const deviceProperties = {
+  id: { type: "integer" },
+  device: { type: "string" },
+  status: { type: "string" },
+  room: { type: "string" },
+};
 
-const createSchema = {
+export const createBodySchema = {
   type: "object",
   required: ["device", "room"],
   properties: {
@@ -14,7 +18,7 @@ const createSchema = {
   additionalProperties: false,
 };
 
-const patchSchema = {
+export const patchBodySchema = {
   type: "object",
   minProperties: 1,
   properties: {
@@ -25,7 +29,7 @@ const patchSchema = {
   additionalProperties: false,
 };
 
-const replaceSchema = {
+export const replaceBodySchema = {
   type: "object",
   required: ["device", "room", "status"],
   properties: {
@@ -36,7 +40,7 @@ const replaceSchema = {
   additionalProperties: false,
 };
 
-const querySchema = {
+export const querySchema = {
   type: "object",
   properties: {
     room: { type: "string", minLength: 1 },
@@ -44,7 +48,7 @@ const querySchema = {
   additionalProperties: false,
 };
 
-const paramsSchema = {
+export const paramsSchema = {
   type: "object",
   required: ["id"],
   properties: {
@@ -52,26 +56,18 @@ const paramsSchema = {
   },
 };
 
-const validateCreate = ajv.compile(createSchema);
-const validatePatch = ajv.compile(patchSchema);
-const validateReplace = ajv.compile(replaceSchema);
-const validateQuery = ajv.compile(querySchema);
-const validateParams = ajv.compile(paramsSchema);
+export const deviceResponseSchema = {
+  type: "object",
+  properties: deviceProperties,
+};
 
-export function validate(validateFn, data) {
-  const valid = validateFn(data);
-  if (!valid) {
-    return validateFn.errors.map((e) =>
-      `${e.instancePath} ${e.message}`.trim(),
-    );
-  }
-  return null;
-}
-
-export {
-  validateCreate,
-  validatePatch,
-  validateReplace,
-  validateQuery,
-  validateParams,
+export const devicesListResponseSchema = {
+  type: "object",
+  properties: {
+    count: { type: "integer" },
+    items: {
+      type: "array",
+      items: { type: "object", properties: deviceProperties },
+    },
+  },
 };

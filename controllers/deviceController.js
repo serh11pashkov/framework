@@ -1,16 +1,12 @@
-import * as db from "#data";
-import { readBody } from "#utils/bodyParser";
-import {
-  validateCreate,
-  validatePatch,
-  validateReplace,
-  validateQuery,
-  validateParams,
-  validate,
-} from "#validators";
+import * as service from "#services";
+import { MESSAGES } from "#constants";
 
-export function getHealth(req, res, send) {
-  return send(res, 200, {
+export async function getHealth(request, reply) {
+  return reply.send({ status: "ok" });
+}
+
+export async function getHealthDetails(request, reply) {
+  return reply.send({
     pid: process.pid,
     nodeVersion: process.version,
     platform: process.platform,
@@ -19,85 +15,41 @@ export function getHealth(req, res, send) {
   });
 }
 
-export function getDevices(req, res, send, parsedUrl) {
-  const query = Object.fromEntries(parsedUrl.searchParams.entries());
-  const errors = validate(validateQuery, query);
-  if (errors) return send(res, 400, { error: errors.join("; ") });
-
-  let results = db.getAll();
-  if (query.room) {
-    results = results.filter(
-      (d) => d.room.toLowerCase() === query.room.toLowerCase(),
-    );
-  }
-  return send(res, 200, { count: results.length, items: results });
+export async function getDevices(request, reply) {
+  return reply.send(service.getDevices({ room: request.query.room }));
 }
 
-export function getDeviceById(req, res, send, id) {
-  const errors = validate(validateParams, { id });
-  if (errors) return send(res, 400, { error: errors.join("; ") });
-
-  const device = db.getById(id);
-  if (!device) return send(res, 404, { error: "Device not found" });
-  return send(res, 200, device);
+export async function getDeviceById(request, reply) {
+  const device = service.getDeviceById(request.params.id);
+  if (!device) throw reply.notFound(MESSAGES.NOT_FOUND);
+  return reply.send(device);
 }
 
-export async function createDevice(req, res, send) {
-  const data = await readBody(req);
-  const errors = validate(validateCreate, data);
-  if (errors) return send(res, 400, { error: errors.join("; ") });
-
-  const newDevice = db.create({
-    device: data.device.trim(),
-    status: data.status || "off",
-    room: data.room.trim(),
-  });
-  return send(res, 201, { message: "Device added", device: newDevice });
+export async function createDevice(request, reply) {
+  const device = service.createDevice(request.body);
+  return reply.status(201).send({ message: MESSAGES.CREATED, device });
 }
 
-export async function patchDevice(req, res, send, id) {
-  const paramErrors = validate(validateParams, { id });
-  if (paramErrors) return send(res, 400, { error: paramErrors.join("; ") });
-
-  if (!db.getById(id)) return send(res, 404, { error: "Device not found" });
-
-  const data = await readBody(req);
-  if (data.id !== undefined)
-    return send(res, 400, { error: "Field 'id' cannot be changed" });
-
-  const errors = validate(validatePatch, data);
-  if (errors) return send(res, 400, { error: errors.join("; ") });
-
-  const updated = db.update(id, data);
-  return send(res, 200, { message: "Device updated", device: updated });
+export async function patchDevice(request, reply) {
+  if (!service.getDeviceById(request.params.id))
+    throw reply.notFound(MESSAGES.NOT_FOUND);
+  if (request.body.id !== undefined)
+    throw reply.badRequest(MESSAGES.ID_IMMUTABLE);
+  const device = service.patchDevice(request.params.id, request.body);
+  return reply.send({ message: MESSAGES.UPDATED, device });
 }
 
-export async function replaceDevice(req, res, send, id) {
-  const paramErrors = validate(validateParams, { id });
-  if (paramErrors) return send(res, 400, { error: paramErrors.join("; ") });
-
-  if (!db.getById(id)) return send(res, 404, { error: "Device not found" });
-
-  const data = await readBody(req);
-  if (data.id !== undefined)
-    return send(res, 400, { error: "Field 'id' cannot be changed" });
-
-  const errors = validate(validateReplace, data);
-  if (errors) return send(res, 400, { error: errors.join("; ") });
-
-  const replaced = db.replace(id, {
-    device: data.device.trim(),
-    status: data.status,
-    room: data.room.trim(),
-  });
-  return send(res, 200, { message: "Device replaced", device: replaced });
+export async function replaceDevice(request, reply) {
+  if (!service.getDeviceById(request.params.id))
+    throw reply.notFound(MESSAGES.NOT_FOUND);
+  if (request.body.id !== undefined)
+    throw reply.badRequest(MESSAGES.ID_IMMUTABLE);
+  const device = service.replaceDevice(request.params.id, request.body);
+  return reply.send({ message: MESSAGES.REPLACED, device });
 }
 
-export function deleteDevice(req, res, send, id) {
-  const errors = validate(validateParams, { id });
-  if (errors) return send(res, 400, { error: errors.join("; ") });
-
-  const deleted = db.remove(id);
-  if (!deleted) return send(res, 404, { error: "Device not found" });
-  return send(res, 200, { message: `Device with id=${id} deleted` });
+export async function deleteDevice(request, reply) {
+  const deleted = service.deleteDevice(request.params.id);
+  if (!deleted) throw reply.notFound(MESSAGES.NOT_FOUND);
+  return reply.send({ message: MESSAGES.DELETED(request.params.id) });
 }
