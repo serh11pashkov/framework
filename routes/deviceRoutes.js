@@ -16,10 +16,7 @@ export async function deviceRoutes(fastify) {
     {
       schema: {
         response: {
-          200: {
-            type: "object",
-            properties: { status: { type: "string" } },
-          },
+          200: { type: "object", properties: { status: { type: "string" } } },
         },
       },
     },
@@ -32,31 +29,6 @@ export async function deviceRoutes(fastify) {
       onRequest: async (request, reply) => {
         if (request.headers["x-api-key"] !== fastify.config.ADMIN_API_KEY)
           throw reply.unauthorized("Invalid or missing API key");
-      },
-      schema: {
-        response: {
-          200: {
-            type: "object",
-            properties: {
-              pid: { type: "integer" },
-              nodeVersion: { type: "string" },
-              platform: { type: "string" },
-              uptime: { type: "number" },
-              memoryUsage: {
-                memoryUsage: {
-                  type: "object",
-                  properties: {
-                    rss: { type: "number" },
-                    heapTotal: { type: "number" },
-                    heapUsed: { type: "number" },
-                    external: { type: "number" },
-                    arrayBuffers: { type: "number" },
-                  },
-                },
-              },
-            },
-          },
-        },
       },
     },
     ctrl.getHealthDetails,
@@ -157,5 +129,24 @@ export async function deviceRoutes(fastify) {
       },
     },
     ctrl.deleteDevice,
+  );
+
+  // ================= НОВІ ЕНДПОЇНТИ ДЛЯ ЛАБИ 5 =================
+
+  // Експорт CSV
+  fastify.get("/devices/export", ctrl.exportDevices);
+
+  // Імпорт (без суворої схеми в Fastify, бо це multipart, валідація в контролері)
+  fastify.post("/devices/import", ctrl.importDevices);
+
+  // Завантаження фото
+  fastify.post(
+    "/devices/:id/image",
+    {
+      schema: {
+        params: paramsSchema,
+      },
+    },
+    ctrl.uploadImage,
   );
 }

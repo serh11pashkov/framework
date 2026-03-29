@@ -1,37 +1,62 @@
-let DEVICES = [
-  { id: 1, device: "Smart Lamp", status: "on", room: "Kitchen" },
-  { id: 2, device: "Smart Thermostat", status: "off", room: "Living Room" },
-  { id: 3, device: "Smart Lock", status: "on", room: "Entrance" },
-  { id: 4, device: "Smart Camera", status: "on", room: "Kitchen" },
-];
+import fs from "fs/promises";
+import path from "path";
+import { writeAtomic } from "#utils";
+import { DeviceModel } from "#models";
 
-export const getAll = () => DEVICES;
+const DATA_DIR = path.join(process.cwd(), "data", "items");
 
-export const getById = (id) => DEVICES.find((d) => d.id === id);
+const initDir = async () => await fs.mkdir(DATA_DIR, { recursive: true });
 
-export const create = (data) => {
-  const id = DEVICES.length > 0 ? DEVICES[DEVICES.length - 1].id + 1 : 1;
-  const device = { id, ...data };
-  DEVICES.push(device);
+export const getAll = async () => {
+  await initDir();
+  const files = await fs.readdir(DATA_DIR);
+  const devices = [];
+  for (const file of files.filter((f) => f.endsWith(".json"))) {
+    const data = await fs.readFile(path.join(DATA_DIR, file), "utf8");
+    devices.push(JSON.parse(data));
+  }
+  return devices;
+};
+
+export const getById = async (id) => {
+  try {
+    const data = await fs.readFile(path.join(DATA_DIR, `${id}.json`), "utf8");
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+};
+
+export const create = async (data) => {
+  await initDir();
+  const devices = await getAll();
+  const id = devices.length > 0 ? Math.max(...devices.map((d) => d.id)) + 1 : 1;
+  const device = { ...DeviceModel, ...data, id };
+  await writeAtomic(path.join(DATA_DIR, `${id}.json`), device);
   return device;
 };
 
-export const update = (id, updates) => {
-  const index = DEVICES.findIndex((d) => d.id === id);
-  if (index === -1) return null;
-  DEVICES[index] = { ...DEVICES[index], ...updates };
-  return DEVICES[index];
+export const update = async (id, updates) => {
+  const existing = await getById(id);
+  if (!existing) return null;
+  const updatedDevice = { ...existing, ...updates };
+  await writeAtomic(path.join(DATA_DIR, `${id}.json`), updatedDevice);
+  return updatedDevice;
 };
 
-export const replace = (id, data) => {
-  const index = DEVICES.findIndex((d) => d.id === id);
-  if (index === -1) return null;
-  DEVICES[index] = { id, ...data };
-  return DEVICES[index];
+export const replace = async (id, data) => {
+  const existing = await getById(id);
+  if (!existing) return null;
+  const replacedDevice = { ...DeviceModel, ...data, id };
+  await writeAtomic(path.join(DATA_DIR, `${id}.json`), replacedDevice);
+  return replacedDevice;
 };
 
-export const remove = (id) => {
-  const before = DEVICES.length;
-  DEVICES = DEVICES.filter((d) => d.id !== id);
-  return DEVICES.length < before;
+export const remove = async (id) => {
+  try {
+    await fs.unlink(path.join(DATA_DIR, `${id}.json`));
+    return true;
+  } catch {
+    return false;
+  }
 };

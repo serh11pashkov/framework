@@ -5,6 +5,8 @@ export const deviceProperties = {
   device: { type: "string" },
   status: { type: "string" },
   room: { type: "string" },
+  description: { type: "string" },
+  image: { type: ["string", "null"] },
 };
 
 export const createBodySchema = {
@@ -14,6 +16,7 @@ export const createBodySchema = {
     device: { type: "string", minLength: 1 },
     room: { type: "string", minLength: 1 },
     status: { type: "string", enum: ALLOWED_STATUSES },
+    description: { type: "string" },
   },
   additionalProperties: false,
 };
@@ -25,6 +28,7 @@ export const patchBodySchema = {
     device: { type: "string", minLength: 1 },
     room: { type: "string", minLength: 1 },
     status: { type: "string", enum: ALLOWED_STATUSES },
+    description: { type: "string" },
   },
   additionalProperties: false,
 };
@@ -36,6 +40,7 @@ export const replaceBodySchema = {
     device: { type: "string", minLength: 1 },
     room: { type: "string", minLength: 1 },
     status: { type: "string", enum: ALLOWED_STATUSES },
+    description: { type: "string" },
   },
   additionalProperties: false,
 };
