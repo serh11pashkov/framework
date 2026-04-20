@@ -6,6 +6,8 @@ export const envSchema = {
     HOSTNAME: { type: "string", minLength: 1 },
     NODE_ENV: { type: "string", enum: ["development", "production"] },
     ADMIN_API_KEY: { type: "string", minLength: 1 },
+    EXTERNAL_BASE_URL: { type: "string", minLength: 1 },
+    GITHUB_TOKEN: { type: "string", minLength: 1 },
   },
   additionalProperties: true,
 };

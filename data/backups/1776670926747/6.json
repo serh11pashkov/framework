@@ -1,9 +1,8 @@
 {
-  "id": 3,
+  "id": 6,
   "device": "Smart Camera",
   "status": "on",
   "room": "Hallway",
-  "description": "",
-  "image": null,
-  "power": "off"
+  "description": "Front door view",
+  "image": null
 }

@@ -8,6 +8,10 @@ import fs from "fs/promises";
 import path from "path";
 import Ajv from "ajv";
 import { createBodySchema } from "#schemas/device";
+import {
+  getSharedReposV1Analytics,
+  getSharedReposV2Analytics,
+} from "../services/githubAnalyticsService.js";
 
 const ajv = new Ajv();
 const validateItem = ajv.compile(createBodySchema);
@@ -75,7 +79,7 @@ export async function replaceDevice(request, reply) {
 export async function deleteDevice(request, reply) {
   const deleted = await service.deleteDevice(request.params.id);
   if (!deleted) throw reply.notFound(MESSAGES.NOT_FOUND);
-  return reply.send({ message: MESSAGES.DELETED(request.params.id) });
+  return reply.status(204).send();
 }
 
 // НОВІ ЕНДПОЇНТИ
@@ -125,7 +129,6 @@ export async function importDevices(request, reply) {
     delete item.id;
     delete item.image;
 
-    // Валідація через JSON Schema
     if (validateItem(item)) {
       await service.createDevice(item);
       report.imported++;
@@ -175,4 +178,74 @@ export async function uploadImage(request, reply) {
     message: "Image uploaded successfully",
     device: updatedDevice,
   });
+}
+
+export async function getItemsV2(request, reply) {
+  const page = Number(request.query.page ?? 1);
+  const limit = Number(request.query.limit ?? 10);
+  const room = request.query.room;
+
+  const result = await service.getDevicesPaginated({ page, limit, room });
+  result.items = result.items.map((d) => ({
+    ...d,
+    image: getFullImageUrl(request, d.image),
+  }));
+
+  return reply.send(result);
+}
+
+export async function getItemDetails(request, reply) {
+  const details = await service.getItemWithDetails(request.params.id);
+  if (!details) throw reply.notFound(MESSAGES.NOT_FOUND);
+
+  details.image = getFullImageUrl(request, details.image);
+  return reply.send(details);
+}
+
+export async function getSharedReposV1(request, reply) {
+  const { repo } = request.query;
+  const [owner, name] = String(repo).split("/");
+
+  if (!owner || !name) {
+    throw reply.badRequest("Invalid repo format. Use owner/repository");
+  }
+
+  try {
+    const result = await getSharedReposV1Analytics({ owner, name });
+    return reply.send(result);
+  } catch (error) {
+    if (error.statusCode === 404) {
+      throw reply.notFound("Repository not found");
+    }
+
+    throw reply.code(502).send({
+      statusCode: 502,
+      error: "Bad Gateway",
+      message: error.message,
+    });
+  }
+}
+
+export async function getSharedReposV2(request, reply) {
+  const { repo } = request.query;
+  const [owner, name] = String(repo).split("/");
+
+  if (!owner || !name) {
+    throw reply.badRequest("Invalid repo format. Use owner/repository");
+  }
+
+  try {
+    const result = await getSharedReposV2Analytics({ owner, name });
+    return reply.send(result);
+  } catch (error) {
+    if (error.statusCode === 404) {
+      throw reply.notFound("Repository not found");
+    }
+
+    throw reply.code(502).send({
+      statusCode: 502,
+      error: "Bad Gateway",
+      message: error.message,
+    });
+  }
 }

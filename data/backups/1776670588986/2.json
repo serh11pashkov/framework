@@ -4,5 +4,6 @@
   "status": "on",
   "room": "Living Room",
   "description": "",
-  "image": null
+  "image": null,
+  "power": "off"
 }

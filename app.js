@@ -5,9 +5,13 @@ import fastifyCors from "@fastify/cors";
 import fastifySensible from "@fastify/sensible";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
+import fastifyRateLimit from "@fastify/rate-limit";
+import fastifySwagger from "@fastify/swagger";
+import fastifySwaggerUi from "@fastify/swagger-ui";
 import path from "path";
 import { envSchema } from "./schemas/env.schema.js";
 import { deviceRoutes } from "./routes/deviceRoutes.js";
+import { apiV2Routes } from "./routes/apiV2Routes.js";
 import { checkAndMigrate } from "./migrations/migrate.js";
 import { createBackup } from "./utils/index.js";
 
@@ -29,8 +33,60 @@ export const buildApp = async () => {
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
   });
   await fastify.register(fastifySensible);
+  await fastify.register(fastifyRateLimit, {
+    max: 100,
+    timeWindow: "1 minute",
+    errorResponseBuilder: () => ({
+      statusCode: 429,
+      error: "Too Many Requests",
+      message: "Rate limit exceeded, retry later",
+    }),
+  });
+  await fastify.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: "Smart Home API",
+        version: "2.0.0",
+        description: "API documentation for Smart Home service",
+      },
+      servers: [
+        {
+          url: "http://localhost:3000",
+        },
+      ],
+      tags: [
+        { name: "v1/health", description: "Health checks for API v1" },
+        {
+          name: "v1/items",
+          description: "Legacy item endpoints in API v1",
+        },
+        {
+          name: "v1/devices",
+          description: "Backward-compatible alias endpoints for API v1",
+        },
+        {
+          name: "v1/github",
+          description: "GitHub analytics endpoints in API v1",
+        },
+        {
+          name: "v2/items",
+          description: "New item endpoints in API v2 with pagination",
+        },
+        {
+          name: "v2/github",
+          description: "GitHub analytics endpoints in API v2",
+        },
+      ],
+    },
+  });
+  await fastify.register(fastifySwaggerUi, {
+    routePrefix: "/docs",
+    uiConfig: {
+      docExpansion: "list",
+      deepLinking: false,
+    },
+  });
 
-  // Нові плагіни для лаби
   await fastify.register(fastifyMultipart, {
     limits: { fileSize: 5 * 1024 * 1024 },
   });
@@ -48,7 +104,8 @@ export const buildApp = async () => {
     });
   });
 
-  await fastify.register(deviceRoutes);
+  await fastify.register(deviceRoutes, { prefix: "/api/v1" });
+  await fastify.register(apiV2Routes, { prefix: "/api/v2" });
 
   // Запуск міграції та бекапу
   await checkAndMigrate(fastify.log);

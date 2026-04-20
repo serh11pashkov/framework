@@ -15,7 +15,7 @@ export const getAll = async () => {
     const data = await fs.readFile(path.join(DATA_DIR, file), "utf8");
     devices.push(JSON.parse(data));
   }
-  return devices;
+  return devices.sort((a, b) => Number(a.id) - Number(b.id));
 };
 
 export const getById = async (id) => {

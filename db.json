@@ -1,0 +1,9 @@
+{
+  "deviceTypes": [
+    {
+      "id": 1,
+      "type": "lamp",
+      "powerWatt": 10
+    }
+  ]
+}
