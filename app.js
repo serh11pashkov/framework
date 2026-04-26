@@ -10,10 +10,10 @@ import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import fastifyWebsocket from "@fastify/websocket";
 import path from "path";
+import mysqlPlugin from "./db/mysql.js";
 import { envSchema } from "./schemas/env.schema.js";
 import { deviceRoutes } from "./routes/deviceRoutes.js";
 import { apiV2Routes } from "./routes/apiV2Routes.js";
-import { checkAndMigrate } from "./migrations/migrate.js";
 import { createBackup } from "./utils/index.js";
 
 export const buildApp = async () => {
@@ -92,6 +92,7 @@ export const buildApp = async () => {
     limits: { fileSize: 5 * 1024 * 1024 },
   });
   await fastify.register(fastifyWebsocket);
+  await fastify.register(mysqlPlugin);
   await fastify.register(fastifyStatic, {
     root: path.join(process.cwd(), "uploads"),
     prefix: "/uploads/",
@@ -109,8 +110,6 @@ export const buildApp = async () => {
   await fastify.register(deviceRoutes, { prefix: "/api/v1" });
   await fastify.register(apiV2Routes, { prefix: "/api/v2" });
 
-  // Запуск міграції та бекапу
-  await checkAndMigrate(fastify.log);
   await createBackup();
 
   return fastify;
