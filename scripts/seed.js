@@ -1,4 +1,5 @@
 import { connectMysql } from "../db/mysql.js";
+import { createDrizzleDb, wireDeviceRepository } from "../db/drizzle.js";
 import {
   clear as clearItems,
   count as countItems,
@@ -69,6 +70,9 @@ const run = async () => {
     // eslint-disable-next-line no-restricted-syntax
     MYSQL_DB: process.env.MYSQL_DB,
   });
+
+  const db = createDrizzleDb(pool);
+  wireDeviceRepository(db);
 
   try {
     if (force) {

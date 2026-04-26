@@ -27,9 +27,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run format:check",
+    "db:generate": "drizzle-kit generate --config drizzle.config.js",
+    "db:migrate": "node --env-file=.env db/init.js && drizzle-kit migrate --config drizzle.config.js",
     "seed": "node --env-file=.env scripts/seed.js",
     "seed:force": "node --env-file=.env scripts/seed.js --force",
-    "migrate": "node --env-file=.env db/init.js"
+    "migrate": "npm run db:migrate"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
@@ -44,12 +46,14 @@
     "@fastify/websocket": "^11.2.0",
     "csv-parse": "^6.2.1",
     "csv-stringify": "^6.7.0",
+    "drizzle-orm": "^0.44.7",
     "fastify": "^5.8.2",
     "fastify-plugin": "^5.1.0",
     "mysql2": "^3.22.2"
   },
   "devDependencies": {
     "@eslint/js": "~9.0.0",
+    "drizzle-kit": "^0.31.5",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",

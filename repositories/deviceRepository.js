@@ -1,3 +1,6 @@
+import { asc, eq, sql } from "drizzle-orm";
+import { items } from "../db/schema.js";
+
 let repository = null;
 
 const ensureRepository = () => {
@@ -26,18 +29,14 @@ export const setDeviceRepository = (repo) => {
   repository = repo;
 };
 
-export const createDeviceRepository = (pool) => ({
+export const createDeviceRepository = (db) => ({
   async getAll() {
-    const [rows] = await pool.query(
-      "SELECT id, device, status, room, description, image, power FROM items ORDER BY id ASC",
-    );
+    const rows = await db.select().from(items).orderBy(asc(items.id));
     return rows.map(normalizeDevice);
   },
 
   async *iterateAll() {
-    const [rows] = await pool.query(
-      "SELECT id, device, status, room, description, image, power FROM items ORDER BY id ASC",
-    );
+    const rows = await db.select().from(items).orderBy(asc(items.id));
 
     for (const row of rows) {
       yield normalizeDevice(row);
@@ -45,10 +44,12 @@ export const createDeviceRepository = (pool) => ({
   },
 
   async getById(id) {
-    const [rows] = await pool.execute(
-      "SELECT id, device, status, room, description, image, power FROM items WHERE id = ? LIMIT 1",
-      [id],
-    );
+    const rows = await db
+      .select()
+      .from(items)
+      .where(eq(items.id, Number(id)))
+      .limit(1);
+
     return normalizeDevice(rows[0] ?? null);
   },
 
@@ -62,19 +63,8 @@ export const createDeviceRepository = (pool) => ({
       power: data.power ?? null,
     };
 
-    const [result] = await pool.execute(
-      "INSERT INTO items (device, status, room, description, image, power) VALUES (?, ?, ?, ?, ?, ?)",
-      [
-        payload.device,
-        payload.status,
-        payload.room,
-        payload.description,
-        payload.image,
-        payload.power,
-      ],
-    );
-
-    return normalizeDevice({ id: result.insertId, ...payload });
+    const [result] = await db.insert(items).values(payload).$returningId();
+    return normalizeDevice({ id: result.id, ...payload });
   },
 
   async update(id, updates) {
@@ -86,25 +76,22 @@ export const createDeviceRepository = (pool) => ({
       "image",
       "power",
     ];
-    const fields = [];
-    const values = [];
+    const payload = {};
 
     for (const [key, value] of Object.entries(updates)) {
       if (allowedFields.includes(key)) {
-        fields.push(`${key} = ?`);
-        values.push(value);
+        payload[key] = value;
       }
     }
 
-    if (fields.length === 0) {
+    if (Object.keys(payload).length === 0) {
       return this.getById(id);
     }
 
-    values.push(id);
-    await pool.execute(
-      `UPDATE items SET ${fields.join(", ")} WHERE id = ?`,
-      values,
-    );
+    await db
+      .update(items)
+      .set(payload)
+      .where(eq(items.id, Number(id)));
     return this.getById(id);
   },
 
@@ -118,33 +105,28 @@ export const createDeviceRepository = (pool) => ({
       power: data.power ?? null,
     };
 
-    await pool.execute(
-      "UPDATE items SET device = ?, status = ?, room = ?, description = ?, image = ?, power = ? WHERE id = ?",
-      [
-        payload.device,
-        payload.status,
-        payload.room,
-        payload.description,
-        payload.image,
-        payload.power,
-        id,
-      ],
-    );
+    await db
+      .update(items)
+      .set(payload)
+      .where(eq(items.id, Number(id)));
 
     return this.getById(id);
   },
 
   async remove(id) {
-    const [result] = await pool.execute("DELETE FROM items WHERE id = ?", [id]);
-    return result.affectedRows > 0;
+    const existing = await this.getById(id);
+    if (!existing) return false;
+
+    await db.delete(items).where(eq(items.id, Number(id)));
+    return true;
   },
 
   async clear() {
-    await pool.query("TRUNCATE TABLE items");
+    await db.execute(sql`TRUNCATE TABLE items`);
   },
 
   async count() {
-    const [rows] = await pool.query("SELECT COUNT(*) AS total FROM items");
+    const rows = await db.select({ total: sql`COUNT(*)` }).from(items);
     return Number(rows[0]?.total ?? 0);
   },
 });

@@ -1,10 +1,5 @@
 import fp from "fastify-plugin";
 import mysql from "mysql2/promise";
-import { ensureMysqlSchema } from "./migrate.js";
-import {
-  setDeviceRepository,
-  createDeviceRepository,
-} from "../repositories/deviceRepository.js";
 
 export const connectMysql = async ({
   logger,
@@ -14,6 +9,22 @@ export const connectMysql = async ({
   MYSQL_PASSWORD,
   MYSQL_DB,
 }) => {
+  if (!/^[A-Za-z0-9_]+$/.test(MYSQL_DB)) {
+    throw new Error("MYSQL_DB contains unsupported characters");
+  }
+
+  const bootstrapPool = mysql.createPool({
+    host: MYSQL_HOST,
+    port: Number(MYSQL_PORT),
+    user: MYSQL_USER,
+    password: MYSQL_PASSWORD,
+    waitForConnections: true,
+    connectionLimit: 2,
+  });
+
+  await bootstrapPool.query(`CREATE DATABASE IF NOT EXISTS \`${MYSQL_DB}\``);
+  await bootstrapPool.end();
+
   const pool = mysql.createPool({
     host: MYSQL_HOST,
     port: Number(MYSQL_PORT),
@@ -27,10 +38,6 @@ export const connectMysql = async ({
   try {
     const connection = await pool.getConnection();
     connection.release();
-
-    await ensureMysqlSchema(pool, logger);
-
-    setDeviceRepository(createDeviceRepository(pool));
 
     logger?.info?.("MySQL pool connected");
     return pool;
@@ -52,7 +59,6 @@ async function mysqlPlugin(fastify) {
   });
 
   fastify.decorate("mysql", pool);
-  fastify.decorate("db", pool);
 
   fastify.addHook("onClose", async () => {
     await pool.end();

@@ -11,6 +11,7 @@ import fastifySwaggerUi from "@fastify/swagger-ui";
 import fastifyWebsocket from "@fastify/websocket";
 import path from "path";
 import mysqlPlugin from "./db/mysql.js";
+import drizzlePlugin from "./db/drizzle.js";
 import { envSchema } from "./schemas/env.schema.js";
 import { deviceRoutes } from "./routes/deviceRoutes.js";
 import { apiV2Routes } from "./routes/apiV2Routes.js";
@@ -93,6 +94,7 @@ export const buildApp = async () => {
   });
   await fastify.register(fastifyWebsocket);
   await fastify.register(mysqlPlugin);
+  await fastify.register(drizzlePlugin);
   await fastify.register(fastifyStatic, {
     root: path.join(process.cwd(), "uploads"),
     prefix: "/uploads/",

@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1777225260262,
+      "tag": "0000_unusual_corsair",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1777241307147,
+      "tag": "0001_handy_the_initiative",
+      "breakpoints": true
+    }
+  ]
+}
