@@ -125,7 +125,7 @@ export async function deleteDevice(request, reply) {
 
   eventBus.emit(APP_EVENTS.ITEM_CHANGED, {
     event: "deleted",
-    id: Number(request.params.id),
+    id: String(request.params.id),
   });
 
   return reply.status(204).send();
@@ -324,7 +324,7 @@ export async function uploadImage(request, reply) {
     data.file.on("error", reject);
   });
 
-  const updatedDevice = await service.patchDevice(Number(id), {
+  const updatedDevice = await service.patchDevice(id, {
     image: relativePath,
   });
   updatedDevice.image = getFullImageUrl(request, updatedDevice.image);

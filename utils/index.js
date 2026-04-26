@@ -2,8 +2,9 @@ import fs from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
-import { createReadStream, createWriteStream } from "fs";
+import { createWriteStream } from "fs";
 import { createGzip } from "zlib";
+import { iterateAll } from "#repositories";
 
 export const writeAtomic = async (filePath, data) => {
   const tmp = `${filePath}.tmp`;
@@ -28,25 +29,13 @@ export const getFullImageUrl = (request, imagePath) => {
 };
 
 export const createBackup = async () => {
-  const dataDir = path.join(process.cwd(), "data", "items");
   const backupBaseDir = path.join(process.cwd(), "data", "backups");
   const timestamp = Date.now().toString();
   const backupFilePath = path.join(backupBaseDir, `${timestamp}.gz`);
 
   const backupSource = async function* () {
-    const files = (await fs.readdir(dataDir).catch(() => []))
-      .filter((file) => file.endsWith(".json"))
-      .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10));
-
-    for (const file of files) {
-      const filePath = path.join(dataDir, file);
-      const reader = createReadStream(filePath);
-
-      for await (const chunk of reader) {
-        yield chunk;
-      }
-
-      yield "\n";
+    for await (const item of iterateAll()) {
+      yield `${JSON.stringify(item)}\n`;
     }
   };
 

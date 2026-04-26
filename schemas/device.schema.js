@@ -1,7 +1,7 @@
 import { ALLOWED_STATUSES } from "#constants";
 
 export const deviceProperties = {
-  id: { type: "integer" },
+  id: { type: "string" },
   device: { type: "string" },
   status: { type: "string" },
   room: { type: "string" },
@@ -61,7 +61,7 @@ export const paramsSchema = {
   type: "object",
   required: ["id"],
   properties: {
-    id: { type: "integer", minimum: 1 },
+    id: { type: "string", minLength: 1 },
   },
 };
 

@@ -1,76 +1,91 @@
-import fs from "fs/promises";
-import path from "path";
-import { writeAtomic } from "#utils";
-import { DeviceModel } from "#models";
+let ItemModel = null;
 
-const DATA_DIR = path.join(process.cwd(), "data", "items");
+const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
 
-const initDir = async () => await fs.mkdir(DATA_DIR, { recursive: true });
-const normalizeDevice = (device) => ({ ...DeviceModel, ...device });
+const ensureModel = () => {
+  if (!ItemModel) {
+    throw new Error("Item model is not initialized");
+  }
+
+  return ItemModel;
+};
+
+const normalizeDevice = (device) => {
+  if (!device) return null;
+
+  const plain =
+    typeof device.toObject === "function" ? device.toObject() : device;
+  const { _id, ...rest } = plain;
+
+  return {
+    ...rest,
+    id: String(_id),
+    power: rest.power ?? null,
+  };
+};
+
+export const setItemModel = (model) => {
+  ItemModel = model;
+};
 
 export const getAll = async () => {
-  await initDir();
-  const files = await fs.readdir(DATA_DIR);
-  const devices = [];
-  for (const file of files.filter((f) => f.endsWith(".json"))) {
-    const data = await fs.readFile(path.join(DATA_DIR, file), "utf8");
-    devices.push(normalizeDevice(JSON.parse(data)));
-  }
-  return devices.sort((a, b) => Number(a.id) - Number(b.id));
+  const items = await ensureModel().find({}).sort({ _id: 1 }).lean();
+  return items.map(normalizeDevice);
 };
 
 export const iterateAll = async function* () {
-  await initDir();
-  const files = await fs.readdir(DATA_DIR);
-  const sorted = files
-    .filter((file) => file.endsWith(".json"))
-    .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10));
+  const cursor = ensureModel().find({}).sort({ _id: 1 }).lean().cursor();
 
-  for (const file of sorted) {
-    const content = await fs.readFile(path.join(DATA_DIR, file), "utf8");
-    yield normalizeDevice(JSON.parse(content));
+  for await (const item of cursor) {
+    yield normalizeDevice(item);
   }
 };
 
 export const getById = async (id) => {
-  try {
-    const data = await fs.readFile(path.join(DATA_DIR, `${id}.json`), "utf8");
-    return normalizeDevice(JSON.parse(data));
-  } catch {
-    return null;
-  }
+  if (!OBJECT_ID_REGEX.test(String(id))) return null;
+  const item = await ensureModel().findById(id).lean();
+  return normalizeDevice(item);
 };
 
 export const create = async (data) => {
-  await initDir();
-  const devices = await getAll();
-  const id = devices.length > 0 ? Math.max(...devices.map((d) => d.id)) + 1 : 1;
-  const device = { ...DeviceModel, ...data, id };
-  await writeAtomic(path.join(DATA_DIR, `${id}.json`), device);
-  return device;
+  const item = await ensureModel().create(data);
+  return normalizeDevice(item);
 };
 
 export const update = async (id, updates) => {
-  const existing = await getById(id);
-  if (!existing) return null;
-  const updatedDevice = normalizeDevice({ ...existing, ...updates });
-  await writeAtomic(path.join(DATA_DIR, `${id}.json`), updatedDevice);
-  return updatedDevice;
+  if (!OBJECT_ID_REGEX.test(String(id))) return null;
+  const item = await ensureModel()
+    .findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true, runValidators: true },
+    )
+    .lean();
+
+  return normalizeDevice(item);
 };
 
 export const replace = async (id, data) => {
-  const existing = await getById(id);
-  if (!existing) return null;
-  const replacedDevice = { ...DeviceModel, ...data, id };
-  await writeAtomic(path.join(DATA_DIR, `${id}.json`), replacedDevice);
-  return replacedDevice;
+  if (!OBJECT_ID_REGEX.test(String(id))) return null;
+  const item = await ensureModel()
+    .findByIdAndUpdate(id, data, {
+      new: true,
+      overwrite: true,
+      runValidators: true,
+    })
+    .lean();
+
+  return normalizeDevice(item);
 };
 
 export const remove = async (id) => {
-  try {
-    await fs.unlink(path.join(DATA_DIR, `${id}.json`));
-    return true;
-  } catch {
-    return false;
-  }
+  if (!OBJECT_ID_REGEX.test(String(id))) return false;
+  const result = await ensureModel().findByIdAndDelete(id);
+  return Boolean(result);
 };
+
+export const clear = async () => {
+  await ensureModel().deleteMany({});
+};
+
+export const count = async () => await ensureModel().countDocuments();
