@@ -1,6 +1,7 @@
 import * as repo from "#repositories";
 import fs from "fs/promises";
 import path from "path";
+import { Readable } from "stream";
 
 const EXTERNAL_BASE_URL =
   // eslint-disable-next-line no-restricted-syntax
@@ -107,6 +108,23 @@ export const getDevices = async ({ room } = {}) => {
   return { count: items.length, items };
 };
 
+export const getDevicesObjectStream = ({ room } = {}) => {
+  const iterator = async function* () {
+    for await (const item of repo.iterateAll()) {
+      if (
+        room &&
+        String(item.room).toLowerCase() !== String(room).toLowerCase()
+      ) {
+        continue;
+      }
+
+      yield item;
+    }
+  };
+
+  return Readable.from(iterator(), { objectMode: true });
+};
+
 export const getDevicesPaginated = async ({
   page = 1,
   limit = 10,
@@ -144,6 +162,7 @@ export const createDevice = async (data) =>
     status: data.status ?? "off",
     room: data.room.trim(),
     description: data.description?.trim() ?? "",
+    power: data.power?.trim() || null,
   });
 
 export const patchDevice = async (id, data) => await repo.update(id, data);
@@ -154,6 +173,7 @@ export const replaceDevice = async (id, data) =>
     status: data.status,
     room: data.room.trim(),
     description: data.description?.trim() ?? "",
+    power: data.power?.trim() || null,
   });
 
 export const deleteDevice = async (id) => await repo.remove(id);

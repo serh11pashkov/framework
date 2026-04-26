@@ -1,20 +1,45 @@
 import * as service from "#services";
 import { MESSAGES } from "#constants";
-import { getFullImageUrl } from "#utils";
-import { stringify } from "csv-stringify/sync";
+import { getBackupFilePathByTimestamp, getFullImageUrl } from "#utils";
+import { stringify } from "csv-stringify";
 import { parse } from "csv-parse/sync";
 import fsSync from "fs";
 import fs from "fs/promises";
 import path from "path";
+import { PassThrough, Transform } from "stream";
+import { pipeline } from "stream/promises";
 import Ajv from "ajv";
 import { createBodySchema } from "#schemas/device";
 import {
   getSharedReposV1Analytics,
   getSharedReposV2Analytics,
 } from "../services/githubAnalyticsService.js";
+import { eventBus, APP_EVENTS } from "../services/eventBus.js";
+import { SmartHomeStatusTransform } from "../src/transforms/smartHomeStatusTransform.js";
+import { NdjsonTransform } from "../src/transforms/ndjsonTransform.js";
 
 const ajv = new Ajv();
 const validateItem = ajv.compile(createBodySchema);
+const wsClients = new Set();
+
+const toClientItem = (request, item) => ({
+  ...item,
+  image: getFullImageUrl(request, item.image),
+});
+
+eventBus.on(APP_EVENTS.ITEM_CHANGED, (payload) => {
+  const message = JSON.stringify(payload);
+
+  for (const client of wsClients) {
+    if (client.readyState === 1) {
+      client.send(message);
+    } else {
+      wsClients.delete(client);
+    }
+  }
+});
+
+const isTransformEnabled = (value) => String(value).toLowerCase() === "true";
 
 export async function getHealth(request, reply) {
   return reply.send({ status: "ok" });
@@ -51,6 +76,12 @@ export async function getDeviceById(request, reply) {
 export async function createDevice(request, reply) {
   const device = await service.createDevice(request.body);
   device.image = getFullImageUrl(request, device.image);
+
+  eventBus.emit(APP_EVENTS.ITEM_CHANGED, {
+    event: "created",
+    data: device,
+  });
+
   return reply.status(201).send({ message: MESSAGES.CREATED, device });
 }
 
@@ -62,6 +93,12 @@ export async function patchDevice(request, reply) {
 
   const device = await service.patchDevice(request.params.id, request.body);
   device.image = getFullImageUrl(request, device.image);
+
+  eventBus.emit(APP_EVENTS.ITEM_CHANGED, {
+    event: "updated",
+    data: device,
+  });
+
   return reply.send({ message: MESSAGES.UPDATED, device });
 }
 
@@ -73,28 +110,146 @@ export async function replaceDevice(request, reply) {
 
   const device = await service.replaceDevice(request.params.id, request.body);
   device.image = getFullImageUrl(request, device.image);
+
+  eventBus.emit(APP_EVENTS.ITEM_CHANGED, {
+    event: "updated",
+    data: device,
+  });
+
   return reply.send({ message: MESSAGES.REPLACED, device });
 }
 
 export async function deleteDevice(request, reply) {
   const deleted = await service.deleteDevice(request.params.id);
   if (!deleted) throw reply.notFound(MESSAGES.NOT_FOUND);
+
+  eventBus.emit(APP_EVENTS.ITEM_CHANGED, {
+    event: "deleted",
+    id: Number(request.params.id),
+  });
+
   return reply.status(204).send();
 }
 
 // НОВІ ЕНДПОЇНТИ
 
 export async function exportDevices(request, reply) {
-  const devices = await service.getDevices();
-  const exportData = devices.items.map((d) => ({
-    ...d,
-    image: getFullImageUrl(request, d.image) || "null",
-  }));
+  const transformEnabled = isTransformEnabled(request.query.transform);
+  const objectStream = service.getDevicesObjectStream({
+    room: request.query.room,
+  });
+  const enrichStream = new Transform({
+    objectMode: true,
+    transform(item, _encoding, callback) {
+      callback(null, {
+        ...item,
+        image: getFullImageUrl(request, item.image),
+      });
+    },
+  });
+  const csvStream = stringify({
+    header: true,
+    columns: [
+      "id",
+      "device",
+      "status",
+      "room",
+      "description",
+      "image",
+      ...(transformEnabled ? ["isActive"] : []),
+    ],
+    cast: {
+      boolean: (value) => (value ? "true" : "false"),
+    },
+  });
+  const outputStream = new PassThrough();
 
-  const csv = stringify(exportData, { header: true });
+  const pipelineStreams = [objectStream, enrichStream];
+  if (transformEnabled) {
+    pipelineStreams.push(new SmartHomeStatusTransform());
+  }
+  pipelineStreams.push(csvStream, outputStream);
+
+  void pipeline(...pipelineStreams).catch((error) => {
+    outputStream.destroy(error);
+  });
+
   reply.header("Content-Disposition", 'attachment; filename="devices.csv"');
   reply.type("text/csv");
-  return reply.send(csv);
+  return reply.send(outputStream);
+}
+
+export async function streamDevices(request, reply) {
+  const objectStream = service.getDevicesObjectStream({
+    room: request.query.room,
+  });
+  const enrichStream = new Transform({
+    objectMode: true,
+    transform(item, _encoding, callback) {
+      callback(null, toClientItem(request, item));
+    },
+  });
+  const outputStream = new PassThrough();
+
+  void pipeline(
+    objectStream,
+    enrichStream,
+    new NdjsonTransform(),
+    outputStream,
+  ).catch((error) => {
+    outputStream.destroy(error);
+  });
+
+  reply.type("application/x-ndjson");
+  return reply.send(outputStream);
+}
+
+export async function getBackupByTimestamp(request, reply) {
+  let backupPath;
+
+  try {
+    backupPath = await getBackupFilePathByTimestamp(request.params.timestamp);
+  } catch {
+    throw reply.notFound("Backup not found");
+  }
+
+  reply.header(
+    "Content-Disposition",
+    `attachment; filename="${path.basename(backupPath)}"`,
+  );
+  reply.type("application/gzip");
+  return reply.send(fsSync.createReadStream(backupPath));
+}
+
+export async function itemsWebsocket(connection, request) {
+  const socket = connection?.socket ?? connection;
+
+  if (!socket) {
+    return;
+  }
+
+  wsClients.add(socket);
+
+  try {
+    const snapshot = await service.getDevices();
+    const payload = {
+      event: "snapshot",
+      data: snapshot.items.map((item) => toClientItem(request, item)),
+    };
+    socket.send(JSON.stringify(payload));
+  } catch {
+    socket.send(
+      JSON.stringify({ event: "error", message: "Failed to load snapshot" }),
+    );
+  }
+
+  socket.on("close", () => {
+    wsClients.delete(socket);
+  });
+
+  socket.on("error", () => {
+    wsClients.delete(socket);
+  });
 }
 
 export async function importDevices(request, reply) {

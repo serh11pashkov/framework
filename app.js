@@ -8,6 +8,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyRateLimit from "@fastify/rate-limit";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
+import fastifyWebsocket from "@fastify/websocket";
 import path from "path";
 import { envSchema } from "./schemas/env.schema.js";
 import { deviceRoutes } from "./routes/deviceRoutes.js";
@@ -90,6 +91,7 @@ export const buildApp = async () => {
   await fastify.register(fastifyMultipart, {
     limits: { fileSize: 5 * 1024 * 1024 },
   });
+  await fastify.register(fastifyWebsocket);
   await fastify.register(fastifyStatic, {
     root: path.join(process.cwd(), "uploads"),
     prefix: "/uploads/",

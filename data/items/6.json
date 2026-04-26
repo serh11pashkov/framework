@@ -4,5 +4,6 @@
   "status": "on",
   "room": "Hallway",
   "description": "Front door view",
-  "image": null
+  "image": null,
+  "power": null
 }

@@ -4,5 +4,6 @@
   "status": "on",
   "room": "Kitchen",
   "description": "Main light",
-  "image": null
+  "image": null,
+  "power": null
 }

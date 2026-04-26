@@ -11,6 +11,28 @@ import {
 } from "#schemas/device";
 
 export async function deviceRoutes(fastify) {
+  const exportQuerySchema = {
+    type: "object",
+    properties: {
+      room: { type: "string", minLength: 1 },
+      transform: {
+        anyOf: [
+          { type: "boolean" },
+          { type: "string", enum: ["true", "false"] },
+        ],
+      },
+    },
+    additionalProperties: false,
+  };
+
+  const backupParamsSchema = {
+    type: "object",
+    required: ["timestamp"],
+    properties: {
+      timestamp: { type: "string", minLength: 1 },
+    },
+  };
+
   fastify.get(
     "/health",
     {
@@ -38,6 +60,14 @@ export async function deviceRoutes(fastify) {
       },
     },
     ctrl.getHealthDetails,
+  );
+
+  fastify.get(
+    "/items/ws",
+    {
+      websocket: true,
+    },
+    ctrl.itemsWebsocket,
   );
 
   fastify.get(
@@ -164,9 +194,38 @@ export async function deviceRoutes(fastify) {
       schema: {
         tags: ["v1/items"],
         summary: "Export items to CSV",
+        querystring: exportQuerySchema,
       },
     },
     ctrl.exportDevices,
+  );
+
+  fastify.get(
+    "/items/stream",
+    {
+      schema: {
+        tags: ["v1/items"],
+        summary: "Stream items as NDJSON",
+        querystring: querySchema,
+      },
+    },
+    ctrl.streamDevices,
+  );
+
+  fastify.get(
+    "/backups/:timestamp",
+    {
+      schema: {
+        tags: ["v1/items"],
+        summary: "Download gz backup by timestamp",
+        params: backupParamsSchema,
+      },
+      onRequest: async (request, reply) => {
+        if (request.headers["x-api-key"] !== fastify.config.ADMIN_API_KEY)
+          throw reply.unauthorized("Invalid or missing API key");
+      },
+    },
+    ctrl.getBackupByTimestamp,
   );
 
   fastify.post(
@@ -224,6 +283,7 @@ export async function deviceRoutes(fastify) {
     },
     ctrl.getDevices,
   );
+
   fastify.get(
     "/devices/:id",
     {
@@ -236,6 +296,7 @@ export async function deviceRoutes(fastify) {
     },
     ctrl.getDeviceById,
   );
+
   fastify.post(
     "/devices",
     {
@@ -256,6 +317,7 @@ export async function deviceRoutes(fastify) {
     },
     ctrl.createDevice,
   );
+
   fastify.patch(
     "/devices/:id",
     {
@@ -277,6 +339,7 @@ export async function deviceRoutes(fastify) {
     },
     ctrl.patchDevice,
   );
+
   fastify.put(
     "/devices/:id",
     {
@@ -298,6 +361,7 @@ export async function deviceRoutes(fastify) {
     },
     ctrl.replaceDevice,
   );
+
   fastify.delete(
     "/devices/:id",
     {
@@ -310,16 +374,19 @@ export async function deviceRoutes(fastify) {
     },
     ctrl.deleteDevice,
   );
+
   fastify.get(
     "/devices/export",
     {
       schema: {
         tags: ["v1/devices"],
         summary: "Legacy alias: export items to CSV via /devices/export",
+        querystring: exportQuerySchema,
       },
     },
     ctrl.exportDevices,
   );
+
   fastify.post(
     "/devices/import",
     {
@@ -330,6 +397,7 @@ export async function deviceRoutes(fastify) {
     },
     ctrl.importDevices,
   );
+
   fastify.post(
     "/devices/:id/image",
     {

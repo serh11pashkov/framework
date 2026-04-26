@@ -4,5 +4,6 @@
   "status": "off",
   "room": "Living Room",
   "description": "Nest Gen 3",
-  "image": null
+  "image": null,
+  "power": null
 }

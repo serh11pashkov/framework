@@ -4,3 +4,8 @@ node_modules/
 *.tmp
 /esm/
 /cjs/
+
+data/backups/*
+!data/backups/.gitkeep
+uploads/*
+!uploads/.gitkeep

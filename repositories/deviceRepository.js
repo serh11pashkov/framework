@@ -6,6 +6,7 @@ import { DeviceModel } from "#models";
 const DATA_DIR = path.join(process.cwd(), "data", "items");
 
 const initDir = async () => await fs.mkdir(DATA_DIR, { recursive: true });
+const normalizeDevice = (device) => ({ ...DeviceModel, ...device });
 
 export const getAll = async () => {
   await initDir();
@@ -13,15 +14,28 @@ export const getAll = async () => {
   const devices = [];
   for (const file of files.filter((f) => f.endsWith(".json"))) {
     const data = await fs.readFile(path.join(DATA_DIR, file), "utf8");
-    devices.push(JSON.parse(data));
+    devices.push(normalizeDevice(JSON.parse(data)));
   }
   return devices.sort((a, b) => Number(a.id) - Number(b.id));
+};
+
+export const iterateAll = async function* () {
+  await initDir();
+  const files = await fs.readdir(DATA_DIR);
+  const sorted = files
+    .filter((file) => file.endsWith(".json"))
+    .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10));
+
+  for (const file of sorted) {
+    const content = await fs.readFile(path.join(DATA_DIR, file), "utf8");
+    yield normalizeDevice(JSON.parse(content));
+  }
 };
 
 export const getById = async (id) => {
   try {
     const data = await fs.readFile(path.join(DATA_DIR, `${id}.json`), "utf8");
-    return JSON.parse(data);
+    return normalizeDevice(JSON.parse(data));
   } catch {
     return null;
   }
@@ -39,7 +53,7 @@ export const create = async (data) => {
 export const update = async (id, updates) => {
   const existing = await getById(id);
   if (!existing) return null;
-  const updatedDevice = { ...existing, ...updates };
+  const updatedDevice = normalizeDevice({ ...existing, ...updates });
   await writeAtomic(path.join(DATA_DIR, `${id}.json`), updatedDevice);
   return updatedDevice;
 };
