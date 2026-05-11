@@ -15,6 +15,13 @@
       "when": 1777241307147,
       "tag": "0001_handy_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1778483861507,
+      "tag": "0002_naive_leopardon",
+      "breakpoints": true
     }
   ]
 }

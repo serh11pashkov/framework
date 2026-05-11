@@ -5,16 +5,22 @@ import fastifyCors from "@fastify/cors";
 import fastifySensible from "@fastify/sensible";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
+import fastifyRedis from "@fastify/redis";
+import fastifyCookie from "@fastify/cookie";
+import fastifySession from "@fastify/session";
 import fastifyRateLimit from "@fastify/rate-limit";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import fastifyWebsocket from "@fastify/websocket";
+import RedisStore from "fastify-session-redis-store";
 import path from "path";
 import mysqlPlugin from "./db/mysql.js";
 import drizzlePlugin from "./db/drizzle.js";
 import { envSchema } from "./schemas/env.schema.js";
 import { deviceRoutes } from "./routes/deviceRoutes.js";
 import { apiV2Routes } from "./routes/apiV2Routes.js";
+import authRoutes from "./routes/authRoutes.js";
+import { createAuthService } from "./services/authService.js";
 import { createBackup } from "./utils/index.js";
 
 export const buildApp = async () => {
@@ -35,9 +41,39 @@ export const buildApp = async () => {
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
   });
   await fastify.register(fastifySensible);
+
+  // Redis
+  const redisConfig = fastify.config.REDIS_URL
+    ? { url: fastify.config.REDIS_URL }
+    : {
+        host: fastify.config.REDIS_HOST,
+        port: fastify.config.REDIS_PORT,
+      };
+  await fastify.register(fastifyRedis, {
+    ...redisConfig,
+    closeClient: true,
+  });
+
+  // Cookie (must be before session)
+  await fastify.register(fastifyCookie);
+
+  // Session with Redis store
+  await fastify.register(fastifySession, {
+    secret: fastify.config.SESSION_SECRET,
+    store: new RedisStore({ client: fastify.redis }),
+    cookie: {
+      httpOnly: true,
+      secure: fastify.config.NODE_ENV === "production",
+      maxAge: 86400000, // 24 hours
+    },
+    saveUninitialized: false,
+  });
+
+  // Rate limit with Redis store
   await fastify.register(fastifyRateLimit, {
     max: 100,
     timeWindow: "1 minute",
+    redis: fastify.redis,
     errorResponseBuilder: () => ({
       statusCode: 429,
       error: "Too Many Requests",
@@ -78,6 +114,7 @@ export const buildApp = async () => {
           name: "v2/github",
           description: "GitHub analytics endpoints in API v2",
         },
+        { name: "auth", description: "Session-based authentication endpoints" },
       ],
     },
   });
@@ -95,6 +132,17 @@ export const buildApp = async () => {
   await fastify.register(fastifyWebsocket);
   await fastify.register(mysqlPlugin);
   await fastify.register(drizzlePlugin);
+
+  // Auth service
+  fastify.decorate("authService", createAuthService({ db: fastify.db }));
+
+  // Auth decorator
+  fastify.decorate("authenticate", async (request, reply) => {
+    if (!request.session.userId) {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+  });
+
   await fastify.register(fastifyStatic, {
     root: path.join(process.cwd(), "uploads"),
     prefix: "/uploads/",
@@ -111,6 +159,7 @@ export const buildApp = async () => {
 
   await fastify.register(deviceRoutes, { prefix: "/api/v1" });
   await fastify.register(apiV2Routes, { prefix: "/api/v2" });
+  await fastify.register(authRoutes, { prefix: "/auth" });
 
   await createBackup();
 

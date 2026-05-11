@@ -111,6 +111,7 @@ export async function deviceRoutes(fastify) {
   fastify.post(
     "/items",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/items"],
         summary: "Create item",
@@ -132,6 +133,7 @@ export async function deviceRoutes(fastify) {
   fastify.patch(
     "/items/:id",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/items"],
         summary: "Patch item",
@@ -154,6 +156,7 @@ export async function deviceRoutes(fastify) {
   fastify.put(
     "/items/:id",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/items"],
         summary: "Replace item",
@@ -176,6 +179,7 @@ export async function deviceRoutes(fastify) {
   fastify.delete(
     "/items/:id",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/items"],
         summary: "Delete item",
@@ -300,6 +304,7 @@ export async function deviceRoutes(fastify) {
   fastify.post(
     "/devices",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/devices"],
         summary: "Legacy alias: create item via /devices",
@@ -321,6 +326,7 @@ export async function deviceRoutes(fastify) {
   fastify.patch(
     "/devices/:id",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/devices"],
         summary: "Legacy alias: patch item via /devices/:id",
@@ -343,6 +349,7 @@ export async function deviceRoutes(fastify) {
   fastify.put(
     "/devices/:id",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/devices"],
         summary: "Legacy alias: replace item via /devices/:id",
@@ -365,6 +372,7 @@ export async function deviceRoutes(fastify) {
   fastify.delete(
     "/devices/:id",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/devices"],
         summary: "Legacy alias: delete item via /devices/:id",
@@ -390,6 +398,7 @@ export async function deviceRoutes(fastify) {
   fastify.post(
     "/devices/import",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/devices"],
         summary: "Legacy alias: import items via /devices/import",
@@ -401,6 +410,7 @@ export async function deviceRoutes(fastify) {
   fastify.post(
     "/devices/:id/image",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         tags: ["v1/devices"],
         summary: "Legacy alias: upload item image via /devices/:id/image",
