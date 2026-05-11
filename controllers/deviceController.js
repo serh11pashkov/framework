@@ -1,4 +1,3 @@
-import * as service from "#services";
 import { MESSAGES } from "#constants";
 import { getBackupFilePathByTimestamp, getFullImageUrl } from "#utils";
 import { stringify } from "csv-stringify";
@@ -56,7 +55,7 @@ export async function getHealthDetails(request, reply) {
 }
 
 export async function getDevices(request, reply) {
-  const result = await service.getDevices({ room: request.query.room });
+  const result = await request.server.deviceService.getDevices({ room: request.query.room });
 
   result.items = result.items.map((d) => ({
     ...d,
@@ -66,7 +65,7 @@ export async function getDevices(request, reply) {
 }
 
 export async function getDeviceById(request, reply) {
-  const device = await service.getDeviceById(request.params.id);
+  const device = await request.server.deviceService.getDeviceById(request.params.id);
   if (!device) throw reply.notFound(MESSAGES.NOT_FOUND);
 
   device.image = getFullImageUrl(request, device.image);
@@ -74,8 +73,9 @@ export async function getDeviceById(request, reply) {
 }
 
 export async function createDevice(request, reply) {
-  const device = await service.createDevice(request.body);
+  const device = await request.server.deviceService.createDevice(request.body);
   device.image = getFullImageUrl(request, device.image);
+  await request.server.deviceService.invalidateItemsCache();
 
   eventBus.emit(APP_EVENTS.ITEM_CHANGED, {
     event: "created",
@@ -86,13 +86,14 @@ export async function createDevice(request, reply) {
 }
 
 export async function patchDevice(request, reply) {
-  if (!(await service.getDeviceById(request.params.id)))
+  if (!(await request.server.deviceService.getDeviceById(request.params.id)))
     throw reply.notFound(MESSAGES.NOT_FOUND);
   if (request.body.id !== undefined)
     throw reply.badRequest(MESSAGES.ID_IMMUTABLE);
 
-  const device = await service.patchDevice(request.params.id, request.body);
+  const device = await request.server.deviceService.patchDevice(request.params.id, request.body);
   device.image = getFullImageUrl(request, device.image);
+  await request.server.deviceService.invalidateItemsCache();
 
   eventBus.emit(APP_EVENTS.ITEM_CHANGED, {
     event: "updated",
@@ -103,13 +104,14 @@ export async function patchDevice(request, reply) {
 }
 
 export async function replaceDevice(request, reply) {
-  if (!(await service.getDeviceById(request.params.id)))
+  if (!(await request.server.deviceService.getDeviceById(request.params.id)))
     throw reply.notFound(MESSAGES.NOT_FOUND);
   if (request.body.id !== undefined)
     throw reply.badRequest(MESSAGES.ID_IMMUTABLE);
 
-  const device = await service.replaceDevice(request.params.id, request.body);
+  const device = await request.server.deviceService.replaceDevice(request.params.id, request.body);
   device.image = getFullImageUrl(request, device.image);
+  await request.server.deviceService.invalidateItemsCache();
 
   eventBus.emit(APP_EVENTS.ITEM_CHANGED, {
     event: "updated",
@@ -120,8 +122,9 @@ export async function replaceDevice(request, reply) {
 }
 
 export async function deleteDevice(request, reply) {
-  const deleted = await service.deleteDevice(request.params.id);
+  const deleted = await request.server.deviceService.deleteDevice(request.params.id);
   if (!deleted) throw reply.notFound(MESSAGES.NOT_FOUND);
+  await request.server.deviceService.invalidateItemsCache();
 
   eventBus.emit(APP_EVENTS.ITEM_CHANGED, {
     event: "deleted",
@@ -135,7 +138,7 @@ export async function deleteDevice(request, reply) {
 
 export async function exportDevices(request, reply) {
   const transformEnabled = isTransformEnabled(request.query.transform);
-  const objectStream = service.getDevicesObjectStream({
+  const objectStream = request.server.deviceService.getDevicesObjectStream({
     room: request.query.room,
   });
   const enrichStream = new Transform({
@@ -180,7 +183,7 @@ export async function exportDevices(request, reply) {
 }
 
 export async function streamDevices(request, reply) {
-  const objectStream = service.getDevicesObjectStream({
+  const objectStream = request.server.deviceService.getDevicesObjectStream({
     room: request.query.room,
   });
   const enrichStream = new Transform({
@@ -231,7 +234,7 @@ export async function itemsWebsocket(connection, request) {
   wsClients.add(socket);
 
   try {
-    const snapshot = await service.getDevices();
+    const snapshot = await request.server.deviceService.getDevices();
     const payload = {
       event: "snapshot",
       data: snapshot.items.map((item) => toClientItem(request, item)),
@@ -285,7 +288,7 @@ export async function importDevices(request, reply) {
     delete item.image;
 
     if (validateItem(item)) {
-      await service.createDevice(item);
+      await request.server.deviceService.createDevice(item);
       report.imported++;
     } else {
       report.rejected.push({
@@ -293,6 +296,10 @@ export async function importDevices(request, reply) {
         reason: ajv.errorsText(validateItem.errors),
       });
     }
+  }
+
+  if (report.imported > 0) {
+    await request.server.deviceService.invalidateItemsCache();
   }
 
   return reply.send(report);
@@ -307,7 +314,7 @@ export async function uploadImage(request, reply) {
   }
 
   const id = request.params.id;
-  const device = await service.getDeviceById(id);
+  const device = await request.server.deviceService.getDeviceById(id);
   if (!device) throw reply.notFound(MESSAGES.NOT_FOUND);
 
   const ext = data.filename.endsWith(".png") ? ".png" : ".jpg";
@@ -324,9 +331,10 @@ export async function uploadImage(request, reply) {
     data.file.on("error", reject);
   });
 
-  const updatedDevice = await service.patchDevice(Number(id), {
+  const updatedDevice = await request.server.deviceService.patchDevice(Number(id), {
     image: relativePath,
   });
+  await request.server.deviceService.invalidateItemsCache();
   updatedDevice.image = getFullImageUrl(request, updatedDevice.image);
 
   return reply.send({
@@ -340,7 +348,7 @@ export async function getItemsV2(request, reply) {
   const limit = Number(request.query.limit ?? 10);
   const room = request.query.room;
 
-  const result = await service.getDevicesPaginated({ page, limit, room });
+  const result = await request.server.deviceService.getDevicesPaginated({ page, limit, room });
   result.items = result.items.map((d) => ({
     ...d,
     image: getFullImageUrl(request, d.image),
@@ -350,7 +358,7 @@ export async function getItemsV2(request, reply) {
 }
 
 export async function getItemDetails(request, reply) {
-  const details = await service.getItemWithDetails(request.params.id);
+  const details = await request.server.deviceService.getItemWithDetails(request.params.id);
   if (!details) throw reply.notFound(MESSAGES.NOT_FOUND);
 
   details.image = getFullImageUrl(request, details.image);

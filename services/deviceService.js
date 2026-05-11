@@ -115,6 +115,16 @@ export const createDeviceService = ({ redis } = {}) => {
           ? Math.min(Math.floor(limit), 100)
           : 10;
 
+      const cacheKey = REDIS_KEYS.ITEMS_LIST(normalizedPage, normalizedLimit, room || "*");
+
+      // Check cache first
+      if (redis) {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          return JSON.parse(cached);
+        }
+      }
+
       const all = await repo.getAll();
       const filtered = room
         ? all.filter((d) => d.room.toLowerCase() === room.toLowerCase())
@@ -125,13 +135,20 @@ export const createDeviceService = ({ redis } = {}) => {
       const start = (normalizedPage - 1) * normalizedLimit;
       const items = filtered.slice(start, start + normalizedLimit);
 
-      return {
+      const result = {
         items,
         total,
         page: normalizedPage,
         limit: normalizedLimit,
         totalPages,
       };
+
+      // Cache for 24 hours
+      if (redis) {
+        await redis.set(cacheKey, JSON.stringify(result), "EX", 86400);
+      }
+
+      return result;
     },
 
     async getDeviceById(id) {
@@ -202,6 +219,16 @@ export const createDeviceService = ({ redis } = {}) => {
             powerWatt: null,
           },
         };
+      }
+    },
+
+    async invalidateItemsCache() {
+      if (!redis) return;
+      // Delete all items list cache keys (pagination)
+      const pattern = REDIS_KEYS.ITEMS_LIST("*", "*", "*");
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) {
+        await redis.del(...keys);
       }
     },
   };
