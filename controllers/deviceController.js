@@ -55,7 +55,9 @@ export async function getHealthDetails(request, reply) {
 }
 
 export async function getDevices(request, reply) {
-  const result = await request.server.deviceService.getDevices({ room: request.query.room });
+  const result = await request.server.deviceService.getDevices({
+    room: request.query.room,
+  });
 
   result.items = result.items.map((d) => ({
     ...d,
@@ -65,7 +67,9 @@ export async function getDevices(request, reply) {
 }
 
 export async function getDeviceById(request, reply) {
-  const device = await request.server.deviceService.getDeviceById(request.params.id);
+  const device = await request.server.deviceService.getDeviceById(
+    request.params.id,
+  );
   if (!device) throw reply.notFound(MESSAGES.NOT_FOUND);
 
   device.image = getFullImageUrl(request, device.image);
@@ -91,7 +95,10 @@ export async function patchDevice(request, reply) {
   if (request.body.id !== undefined)
     throw reply.badRequest(MESSAGES.ID_IMMUTABLE);
 
-  const device = await request.server.deviceService.patchDevice(request.params.id, request.body);
+  const device = await request.server.deviceService.patchDevice(
+    request.params.id,
+    request.body,
+  );
   device.image = getFullImageUrl(request, device.image);
   await request.server.deviceService.invalidateItemsCache();
 
@@ -109,7 +116,10 @@ export async function replaceDevice(request, reply) {
   if (request.body.id !== undefined)
     throw reply.badRequest(MESSAGES.ID_IMMUTABLE);
 
-  const device = await request.server.deviceService.replaceDevice(request.params.id, request.body);
+  const device = await request.server.deviceService.replaceDevice(
+    request.params.id,
+    request.body,
+  );
   device.image = getFullImageUrl(request, device.image);
   await request.server.deviceService.invalidateItemsCache();
 
@@ -122,7 +132,9 @@ export async function replaceDevice(request, reply) {
 }
 
 export async function deleteDevice(request, reply) {
-  const deleted = await request.server.deviceService.deleteDevice(request.params.id);
+  const deleted = await request.server.deviceService.deleteDevice(
+    request.params.id,
+  );
   if (!deleted) throw reply.notFound(MESSAGES.NOT_FOUND);
   await request.server.deviceService.invalidateItemsCache();
 
@@ -331,9 +343,12 @@ export async function uploadImage(request, reply) {
     data.file.on("error", reject);
   });
 
-  const updatedDevice = await request.server.deviceService.patchDevice(Number(id), {
-    image: relativePath,
-  });
+  const updatedDevice = await request.server.deviceService.patchDevice(
+    Number(id),
+    {
+      image: relativePath,
+    },
+  );
   await request.server.deviceService.invalidateItemsCache();
   updatedDevice.image = getFullImageUrl(request, updatedDevice.image);
 
@@ -348,7 +363,11 @@ export async function getItemsV2(request, reply) {
   const limit = Number(request.query.limit ?? 10);
   const room = request.query.room;
 
-  const result = await request.server.deviceService.getDevicesPaginated({ page, limit, room });
+  const result = await request.server.deviceService.getDevicesPaginated({
+    page,
+    limit,
+    room,
+  });
   result.items = result.items.map((d) => ({
     ...d,
     image: getFullImageUrl(request, d.image),
@@ -358,7 +377,9 @@ export async function getItemsV2(request, reply) {
 }
 
 export async function getItemDetails(request, reply) {
-  const details = await request.server.deviceService.getItemWithDetails(request.params.id);
+  const details = await request.server.deviceService.getItemWithDetails(
+    request.params.id,
+  );
   if (!details) throw reply.notFound(MESSAGES.NOT_FOUND);
 
   details.image = getFullImageUrl(request, details.image);

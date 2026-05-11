@@ -115,7 +115,11 @@ export const createDeviceService = ({ redis } = {}) => {
           ? Math.min(Math.floor(limit), 100)
           : 10;
 
-      const cacheKey = REDIS_KEYS.ITEMS_LIST(normalizedPage, normalizedLimit, room || "*");
+      const cacheKey = REDIS_KEYS.ITEMS_LIST(
+        normalizedPage,
+        normalizedLimit,
+        room || "*",
+      );
 
       // Check cache first
       if (redis) {
@@ -192,8 +196,7 @@ export const createDeviceService = ({ redis } = {}) => {
         const itemType = resolveDeviceType(item.device);
         const found = references.find(
           (entry) =>
-            String(entry.type).toLowerCase() ===
-            String(itemType).toLowerCase(),
+            String(entry.type).toLowerCase() === String(itemType).toLowerCase(),
         );
 
         return {

@@ -109,7 +109,10 @@ export const buildApp = async () => {
   await fastify.register(fastifyWebsocket);
   await fastify.register(mysqlPlugin);
   await fastify.register(drizzlePlugin);
-  fastify.decorate("deviceService", createDeviceService({ redis: fastify.redis }));
+  fastify.decorate(
+    "deviceService",
+    createDeviceService({ redis: fastify.redis }),
+  );
   await fastify.register(fastifyStatic, {
     root: path.join(process.cwd(), "uploads"),
     prefix: "/uploads/",
