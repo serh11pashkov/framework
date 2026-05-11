@@ -10,6 +10,8 @@ export const envSchema = {
     "MYSQL_USER",
     "MYSQL_PASSWORD",
     "MYSQL_DB",
+    "REDIS_HOST",
+    "REDIS_PORT",
   ],
   properties: {
     PORT: { type: "string", pattern: "^[0-9]+$" },
@@ -21,6 +23,9 @@ export const envSchema = {
     MYSQL_USER: { type: "string", minLength: 1 },
     MYSQL_PASSWORD: { type: "string", minLength: 1 },
     MYSQL_DB: { type: "string", minLength: 1 },
+    REDIS_URL: { type: "string", minLength: 1 },
+    REDIS_HOST: { type: "string", minLength: 1 },
+    REDIS_PORT: { type: "string", pattern: "^[0-9]+$" },
     EXTERNAL_BASE_URL: { type: "string", minLength: 1 },
     GITHUB_TOKEN: { type: "string", minLength: 1 },
   },

@@ -5,6 +5,7 @@ import fastifyCors from "@fastify/cors";
 import fastifySensible from "@fastify/sensible";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
+import fastifyRedis from "@fastify/redis";
 import fastifyRateLimit from "@fastify/rate-limit";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
@@ -16,6 +17,7 @@ import { envSchema } from "./schemas/env.schema.js";
 import { deviceRoutes } from "./routes/deviceRoutes.js";
 import { apiV2Routes } from "./routes/apiV2Routes.js";
 import { createBackup } from "./utils/index.js";
+import { createDeviceService } from "./services/deviceService.js";
 
 export const buildApp = async () => {
   // eslint-disable-next-line no-restricted-syntax
@@ -35,9 +37,21 @@ export const buildApp = async () => {
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
   });
   await fastify.register(fastifySensible);
+  // Parse Redis URL if provided, otherwise use host/port
+  const redisConfig = fastify.config.REDIS_URL
+    ? { url: fastify.config.REDIS_URL }
+    : {
+        host: fastify.config.REDIS_HOST,
+        port: fastify.config.REDIS_PORT,
+      };
+  await fastify.register(fastifyRedis, {
+    ...redisConfig,
+    closeClient: true,
+  });
   await fastify.register(fastifyRateLimit, {
     max: 100,
     timeWindow: "1 minute",
+    redis: fastify.redis,
     errorResponseBuilder: () => ({
       statusCode: 429,
       error: "Too Many Requests",
@@ -95,6 +109,7 @@ export const buildApp = async () => {
   await fastify.register(fastifyWebsocket);
   await fastify.register(mysqlPlugin);
   await fastify.register(drizzlePlugin);
+  fastify.decorate("deviceService", createDeviceService({ redis: fastify.redis }));
   await fastify.register(fastifyStatic, {
     root: path.join(process.cwd(), "uploads"),
     prefix: "/uploads/",

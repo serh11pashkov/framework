@@ -1,18 +1,11 @@
 import * as repo from "#repositories";
-import fs from "fs/promises";
-import path from "path";
+import { REDIS_KEYS } from "#constants";
 import { Readable } from "stream";
 
 const EXTERNAL_BASE_URL =
   // eslint-disable-next-line no-restricted-syntax
   process.env.EXTERNAL_BASE_URL ?? "http://localhost:3001/deviceTypes";
-const REFERENCE_CACHE_FILE = path.join(
-  process.cwd(),
-  "data",
-  "cache",
-  "reference.json",
-);
-const REFERENCE_TTL_MS = 120_000;
+const REFERENCE_TTL_SECONDS = 120;
 
 const sleep = async (ms) =>
   await new Promise((resolve) => {
@@ -55,163 +48,161 @@ const fetchWithRetry = async (url, options = {}) => {
   throw lastError;
 };
 
-const readFreshReferenceCache = async () => {
-  try {
-    const raw = await fs.readFile(REFERENCE_CACHE_FILE, "utf8");
-    const parsed = JSON.parse(raw);
-
-    if (
-      !parsed?.cachedAt ||
-      Date.now() - Number(parsed.cachedAt) > REFERENCE_TTL_MS
-    ) {
-      return null;
+// Factory function with Redis dependency injection
+export const createDeviceService = ({ redis } = {}) => {
+  const getExternalDeviceTypes = async () => {
+    if (!redis) {
+      // Fallback if Redis is not available (for testing)
+      return await fetchWithRetry(EXTERNAL_BASE_URL);
     }
 
-    return Array.isArray(parsed.data) ? parsed.data : null;
-  } catch {
-    return null;
-  }
-};
+    const cacheKey = REDIS_KEYS.DEVICE_TYPES;
+    const cached = await redis.get(cacheKey);
 
-const writeReferenceCache = async (data) => {
-  const dir = path.dirname(REFERENCE_CACHE_FILE);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(
-    REFERENCE_CACHE_FILE,
-    JSON.stringify({ cachedAt: Date.now(), data }, null, 2),
-    "utf8",
-  );
-};
-
-const getExternalDeviceTypes = async () => {
-  const cached = await readFreshReferenceCache();
-  if (cached) return cached;
-
-  const fetched = await fetchWithRetry(EXTERNAL_BASE_URL);
-  await writeReferenceCache(fetched);
-  return fetched;
-};
-
-const resolveDeviceType = (deviceName = "") => {
-  const value = String(deviceName).trim().toLowerCase();
-  if (!value) return null;
-
-  const tokens = value.split(/\s+/);
-  return tokens[tokens.length - 1] ?? null;
-};
-
-export const getDevices = async ({ room } = {}) => {
-  const all = await repo.getAll();
-  const items = room
-    ? all.filter((d) => d.room.toLowerCase() === room.toLowerCase())
-    : all;
-  return { count: items.length, items };
-};
-
-export const getDevicesObjectStream = ({ room } = {}) => {
-  const iterator = async function* () {
-    for await (const item of repo.iterateAll()) {
-      if (
-        room &&
-        String(item.room).toLowerCase() !== String(room).toLowerCase()
-      ) {
-        continue;
-      }
-
-      yield item;
+    if (cached) {
+      return JSON.parse(cached);
     }
+
+    const fetched = await fetchWithRetry(EXTERNAL_BASE_URL);
+    await redis.set(
+      cacheKey,
+      JSON.stringify(fetched),
+      "EX",
+      REFERENCE_TTL_SECONDS,
+    );
+    return fetched;
   };
 
-  return Readable.from(iterator(), { objectMode: true });
-};
+  const resolveDeviceType = (deviceName = "") => {
+    const value = String(deviceName).trim().toLowerCase();
+    if (!value) return null;
 
-export const getDevicesPaginated = async ({
-  page = 1,
-  limit = 10,
-  room,
-} = {}) => {
-  const normalizedPage =
-    Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const normalizedLimit =
-    Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 100) : 10;
-
-  const all = await repo.getAll();
-  const filtered = room
-    ? all.filter((d) => d.room.toLowerCase() === room.toLowerCase())
-    : all;
-
-  const total = filtered.length;
-  const totalPages = total === 0 ? 0 : Math.ceil(total / normalizedLimit);
-  const start = (normalizedPage - 1) * normalizedLimit;
-  const items = filtered.slice(start, start + normalizedLimit);
+    const tokens = value.split(/\s+/);
+    return tokens[tokens.length - 1] ?? null;
+  };
 
   return {
-    items,
-    total,
-    page: normalizedPage,
-    limit: normalizedLimit,
-    totalPages,
-  };
-};
+    async getDevices({ room } = {}) {
+      const all = await repo.getAll();
+      const items = room
+        ? all.filter((d) => d.room.toLowerCase() === room.toLowerCase())
+        : all;
+      return { count: items.length, items };
+    },
 
-export const getDeviceById = async (id) => await repo.getById(id);
-
-export const createDevice = async (data) =>
-  await repo.create({
-    device: data.device.trim(),
-    status: data.status ?? "off",
-    room: data.room.trim(),
-    description: data.description?.trim() ?? "",
-    power: data.power?.trim() || null,
-  });
-
-export const patchDevice = async (id, data) => await repo.update(id, data);
-
-export const replaceDevice = async (id, data) =>
-  await repo.replace(id, {
-    device: data.device.trim(),
-    status: data.status,
-    room: data.room.trim(),
-    description: data.description?.trim() ?? "",
-    power: data.power?.trim() || null,
-  });
-
-export const deleteDevice = async (id) => await repo.remove(id);
-
-export const getItemWithDetails = async (id) => {
-  const item = await repo.getById(id);
-  if (!item) return null;
-
-  try {
-    const references = await getExternalDeviceTypes();
-    const itemType = resolveDeviceType(item.device);
-    const found = references.find(
-      (entry) =>
-        String(entry.type).toLowerCase() === String(itemType).toLowerCase(),
-    );
-
-    return {
-      ...item,
-      reference: found
-        ? {
-            id: found.id,
-            type: found.type,
-            powerWatt: found.powerWatt,
+    getDevicesObjectStream({ room } = {}) {
+      const iterator = async function* () {
+        for await (const item of repo.iterateAll()) {
+          if (
+            room &&
+            String(item.room).toLowerCase() !== String(room).toLowerCase()
+          ) {
+            continue;
           }
-        : {
+
+          yield item;
+        }
+      };
+
+      return Readable.from(iterator(), { objectMode: true });
+    },
+
+    async getDevicesPaginated({ page = 1, limit = 10, room } = {}) {
+      const normalizedPage =
+        Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+      const normalizedLimit =
+        Number.isFinite(limit) && limit > 0
+          ? Math.min(Math.floor(limit), 100)
+          : 10;
+
+      const all = await repo.getAll();
+      const filtered = room
+        ? all.filter((d) => d.room.toLowerCase() === room.toLowerCase())
+        : all;
+
+      const total = filtered.length;
+      const totalPages = total === 0 ? 0 : Math.ceil(total / normalizedLimit);
+      const start = (normalizedPage - 1) * normalizedLimit;
+      const items = filtered.slice(start, start + normalizedLimit);
+
+      return {
+        items,
+        total,
+        page: normalizedPage,
+        limit: normalizedLimit,
+        totalPages,
+      };
+    },
+
+    async getDeviceById(id) {
+      return await repo.getById(id);
+    },
+
+    async createDevice(data) {
+      return await repo.create({
+        device: data.device.trim(),
+        status: data.status ?? "off",
+        room: data.room.trim(),
+        description: data.description?.trim() ?? "",
+        power: data.power?.trim() || null,
+      });
+    },
+
+    async patchDevice(id, data) {
+      return await repo.update(id, data);
+    },
+
+    async replaceDevice(id, data) {
+      return await repo.replace(id, {
+        device: data.device.trim(),
+        status: data.status,
+        room: data.room.trim(),
+        description: data.description?.trim() ?? "",
+        power: data.power?.trim() || null,
+      });
+    },
+
+    async deleteDevice(id) {
+      return await repo.remove(id);
+    },
+
+    async getItemWithDetails(id) {
+      const item = await repo.getById(id);
+      if (!item) return null;
+
+      try {
+        const references = await getExternalDeviceTypes();
+        const itemType = resolveDeviceType(item.device);
+        const found = references.find(
+          (entry) =>
+            String(entry.type).toLowerCase() ===
+            String(itemType).toLowerCase(),
+        );
+
+        return {
+          ...item,
+          reference: found
+            ? {
+                id: found.id,
+                type: found.type,
+                powerWatt: found.powerWatt,
+              }
+            : {
+                id: null,
+                type: null,
+                powerWatt: null,
+              },
+        };
+      } catch {
+        return {
+          ...item,
+          reference: {
             id: null,
             type: null,
             powerWatt: null,
           },
-    };
-  } catch {
-    return {
-      ...item,
-      reference: {
-        id: null,
-        type: null,
-        powerWatt: null,
-      },
-    };
-  }
+        };
+      }
+    },
+  };
 };
