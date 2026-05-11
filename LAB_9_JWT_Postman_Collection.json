@@ -1,0 +1,698 @@
+{
+  "info": {
+    "name": "Lab 9 JWT - Authentication & Protected Routes",
+    "description": "Complete JWT authentication flow for Smart Home API. Includes registration, login, token refresh, protected routes, and logout.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "1. Register New User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Save user email for later use",
+                  "pm.environment.set('userEmail', pm.request.body.raw ? JSON.parse(pm.request.body.raw).email : 'test@example.com');",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  pm.test('✓ User registered successfully', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "  });",
+                  "} else {",
+                  "  pm.test('✗ Registration failed', () => {",
+                  "    console.log('Response:', pm.response.text());",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"TestPassword123\",\n  \"passwordConfirm\": \"TestPassword123\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/auth/register",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new user account.\n\n**Request Body:**\n- email: Valid email address (must be unique)\n- password: Minimum 8 characters\n- passwordConfirm: Must match password\n\n**Response (201):**\n- id: User ID\n- email: Registered email\n- createdAt: Registration timestamp\n\n**Common Errors:**\n- 400: Email already registered\n- 400: Password validation failed"
+          }
+        },
+        {
+          "name": "2. Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const response = pm.response.json();",
+                  "  ",
+                  "  // Save access token to environment variable",
+                  "  pm.environment.set('accessToken', response.accessToken);",
+                  "  ",
+                  "  pm.test('✓ Login successful', () => {",
+                  "    pm.expect(response).to.have.property('accessToken');",
+                  "    pm.expect(response.accessToken).to.be.a('string');",
+                  "    pm.expect(response.accessToken).to.have.lengthOf.above(100);",
+                  "  });",
+                  "  ",
+                  "  pm.test('✓ Refresh token cookie set', () => {",
+                  "    const cookies = pm.cookies.jar().toJSON().cookies;",
+                  "    const refreshCookie = cookies.find(c => c.name === 'refreshToken');",
+                  "    pm.expect(refreshCookie).to.exist;",
+                  "    pm.expect(refreshCookie.httpOnly).to.be.true;",
+                  "  });",
+                  "  ",
+                  "  console.log('✓ Access Token:', response.accessToken.substring(0, 50) + '...');",
+                  "} else {",
+                  "  pm.test('✗ Login failed', () => {",
+                  "    console.log('Response:', pm.response.text());",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"TestPassword123\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/auth/login",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["auth", "login"]
+            },
+            "description": "Authenticate user and receive JWT access token.\n\n**Request Body:**\n- email: Registered email\n- password: Account password\n\n**Response (200):**\n- accessToken: JWT for authenticated requests (15 min TTL)\n- Cookie: refreshToken (httpOnly, 7 day TTL)\n\n**Token Structure:**\n```\nHeader: { alg: 'HS256', typ: 'JWT' }\nPayload: { sub: userId, email: email, jti: uniqueId, iat: issuedAt, exp: expiresAt }\nSignature: HMAC-SHA256(secret)\n```\n\n**What Happens:**\n1. Server verifies email & password against database\n2. Generates access token (15 min expiration)\n3. Generates refresh token (7 days)\n4. Stores refresh token in Redis at `refresh:${userId}`\n5. Sets refresh token in httpOnly cookie (immune to XSS)\n6. Returns access token in response body\n\n**Error Responses:**\n- 401: Invalid email or password\n- 400: Schema validation failed"
+          }
+        },
+        {
+          "name": "3. Get Current User (/auth/me)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Verify access token is set",
+                  "const token = pm.environment.get('accessToken');",
+                  "if (!token) {",
+                  "  console.log('⚠️ Warning: No access token found. Run login request first.');",
+                  "} else {",
+                  "  console.log('✓ Using access token from environment');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const user = pm.response.json();",
+                  "  pm.environment.set('userId', user.id);",
+                  "  ",
+                  "  pm.test('✓ Current user info retrieved', () => {",
+                  "    pm.expect(user).to.have.property('id');",
+                  "    pm.expect(user).to.have.property('email');",
+                  "    pm.expect(user).to.have.property('createdAt');",
+                  "  });",
+                  "  ",
+                  "  console.log('✓ User ID:', user.id);",
+                  "} else if (pm.response.code === 401) {",
+                  "  pm.test('✗ Access token expired or invalid', () => {",
+                  "    console.log('Please run Refresh Token request or Login again');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/auth/me",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["auth", "me"]
+            },
+            "description": "Retrieve current authenticated user profile.\n\n**Headers Required:**\n- Authorization: Bearer {{accessToken}}\n\n**Response (200):**\n```json\n{\n  \"id\": 1,\n  \"email\": \"user@example.com\",\n  \"createdAt\": \"2024-01-15T14:21:09.000Z\"\n}\n```\n\n**What Happens:**\n1. Server verifies access token signature\n2. Checks if token is not expired\n3. Checks if token is not blacklisted (for logout support)\n4. Extracts user ID from token payload\n5. Returns user info from database\n\n**Error Responses:**\n- 401: Missing, expired, or invalid token\n- 401: Token blacklisted (after logout)\n- 404: User not found in database"
+          }
+        },
+        {
+          "name": "4. Refresh Access Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const response = pm.response.json();",
+                  "  ",
+                  "  // Update access token in environment",
+                  "  pm.environment.set('accessToken', response.accessToken);",
+                  "  ",
+                  "  pm.test('✓ New access token issued', () => {",
+                  "    pm.expect(response).to.have.property('accessToken');",
+                  "    pm.expect(response.accessToken).to.be.a('string');",
+                  "  });",
+                  "  ",
+                  "  console.log('✓ New access token received, valid for 15 minutes');",
+                  "} else if (pm.response.code === 401) {",
+                  "  pm.test('✗ Refresh token invalid or expired', () => {",
+                  "    console.log('Please login again. Refresh token may have been revoked.');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/auth/refresh",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["auth", "refresh"]
+            },
+            "description": "Obtain a new access token using the refresh token from cookie.\n\n**Headers Required:**\n- Cookie: refreshToken (automatically sent by Postman)\n\n**Response (200):**\n```json\n{\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n}\n```\n\n**What Happens:**\n1. Server extracts refreshToken from cookie\n2. Verifies refresh token signature\n3. Checks if token not expired\n4. Checks if token still exists in Redis (not revoked)\n5. Generates new access token with new `jti`\n6. Returns new access token\n\n**Token Refresh Timeline:**\n- User logs in at 14:00:00\n- Access token expires at 14:15:00\n- User's browser/app detects 401 error\n- App calls /auth/refresh at 14:15:05\n- Receives new access token, valid until 14:30:05\n- Process repeats until 7 days pass and refresh token expires\n\n**Common Issues:**\n- Cookie not sent: Check Postman cookie settings\n- 401 response: Refresh token expired or revoked (logout)\n- Solution: Run Login request again"
+          }
+        },
+        {
+          "name": "5. Logout (Blacklist Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 204) {",
+                  "  pm.test('✓ Logout successful', () => {",
+                  "    pm.response.to.have.status(204);",
+                  "  });",
+                  "  ",
+                  "  // Clear tokens from environment",
+                  "  pm.environment.set('accessToken', '');",
+                  "  ",
+                  "  console.log('✓ Access token blacklisted');",
+                  "  console.log('✓ Refresh token revoked');",
+                  "  console.log('✓ Cookie cleared');",
+                  "} else {",
+                  "  pm.test('✗ Logout failed', () => {",
+                  "    console.log('Response:', pm.response.text());",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/auth/logout",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["auth", "logout"]
+            },
+            "description": "Logout user - invalidate access token and refresh token.\n\n**Headers Required:**\n- Authorization: Bearer {{accessToken}}\n- Cookie: refreshToken (automatically sent)\n\n**Response (204):**\nNo content (successful logout)\n\n**What Happens:**\n1. Server extracts `jti` (JWT ID) from access token\n2. Stores `blacklist:${jti}` in Redis with TTL until token expiration\n3. Deletes `refresh:${userId}` from Redis\n4. Clears `refreshToken` cookie\n5. Returns 204 No Content\n\n**Token Invalidation:**\n\n**Access Token:**\n```javascript\n// Stored in Redis with TTL until expiration\nawait redis.set(`blacklist:${jti}`, '1', 'EX', 899); // 899 seconds remaining\n```\nWhen trusted callback runs, it checks:\n```javascript\nconst isBlacklisted = await redis.get(`blacklist:${jti}`);\nif (isBlacklisted) reject(); // Deny access\n```\nAfter token would have expired anyway, Redis key auto-deletes.\n\n**Refresh Token:**\n```javascript\n// Immediately deleted from Redis\nawait redis.del(`refresh:${userId}`);\n```\n/auth/refresh will fail with 401: \"Invalid refresh token\"\n\n**Security Benefits:**\n- Prevents token reuse if leaked before natural expiration\n- Cannot obtain new access tokens via refresh\n- Cannot access protected routes\n- Clean session termination\n\n**Error Responses:**\n- 401: Missing or invalid access token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Protected Routes Examples",
+      "item": [
+        {
+          "name": "1. Create Item (Protected)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const token = pm.environment.get('accessToken');",
+                  "if (!token) {",
+                  "  console.log('⚠️ No access token. Run Login first.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const response = pm.response.json();",
+                  "  pm.environment.set('lastItemId', response.device?.id || 1);",
+                  "  ",
+                  "  pm.test('✓ Item created successfully', () => {",
+                  "    pm.expect(response).to.have.property('message');",
+                  "    pm.expect(response).to.have.property('device');",
+                  "  });",
+                  "} else if (pm.response.code === 401) {",
+                  "  pm.test('✗ Access token expired or missing', () => {",
+                  "    console.log('Run Refresh Token or Login request');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": \"Light\",\n  \"status\": \"on\",\n  \"room\": \"Living Room\",\n  \"description\": \"Main ceiling light\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v2/items",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v2", "items"]
+            },
+            "description": "Create new smart home item.\n\n**Authentication Required:**\n- Authorization: Bearer {{accessToken}}\n\n**Request Body:**\n```json\n{\n  \"device\": \"Light|Plug|Switch|Sensor|...\",\n  \"status\": \"on|off|...\",\n  \"room\": \"Living Room|Bedroom|...\",\n  \"description\": \"Item description\"\n}\n```\n\n**Response (201):**\n```json\n{\n  \"message\": \"Device created\",\n  \"device\": {\n    \"id\": 42,\n    \"device\": \"Light\",\n    \"status\": \"on\",\n    \"room\": \"Living Room\",\n    \"description\": \"Main ceiling light\",\n    \"createdAt\": \"2024-01-15T14:30:45.000Z\"\n  }\n}\n```\n\n**Error Responses:**\n- 401: No access token or expired\n- 400: Invalid request body"
+          }
+        },
+        {
+          "name": "2. List Items (Public - No Auth)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const response = pm.response.json();",
+                  "  pm.test('✓ Items list retrieved (public endpoint)', () => {",
+                  "    pm.expect(response).to.have.property('items');",
+                  "  });",
+                  "  console.log('Items count:', response.items?.length || 0);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:3000/api/v2/items?page=1&limit=10",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v2", "items"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "List all items (public endpoint - no authentication required).\n\n**Note:** This is a public endpoint. Other GET endpoints also don't require authentication.\nOnly mutation operations (POST, PATCH, PUT, DELETE) require JWT.\n\n**Query Parameters:**\n- page: Page number (default: 1)\n- limit: Items per page (default: 10)\n- room: Filter by room (optional)\n\n**Response (200):**\n```json\n{\n  \"items\": [...],\n  \"page\": 1,\n  \"limit\": 10,\n  \"total\": 42,\n  \"totalPages\": 5\n}\n```"
+          }
+        },
+        {
+          "name": "3. Update Item (Protected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('✓ Item updated successfully', () => {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.device.status).to.equal('off');",
+                  "  });",
+                  "} else if (pm.response.code === 401) {",
+                  "  pm.test('✗ Unauthorized', () => {",
+                  "    console.log('Need valid access token');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"off\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v2/items/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v2", "items", "1"]
+            },
+            "description": "Partially update item (PATCH).\n\n**Authentication Required:**\n- Authorization: Bearer {{accessToken}}\n\n**Path Parameters:**\n- id: Item ID to update\n\n**Request Body (optional fields):**\n```json\n{\n  \"device\": \"Light\",\n  \"status\": \"off\",\n  \"room\": \"Bedroom\",\n  \"description\": \"Updated description\"\n}\n```"
+          }
+        },
+        {
+          "name": "4. Delete Item (Protected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 204) {",
+                  "  pm.test('✓ Item deleted successfully', () => {",
+                  "    pm.response.to.have.status(204);",
+                  "  });",
+                  "} else if (pm.response.code === 401) {",
+                  "  pm.test('✗ Unauthorized', () => {",
+                  "    console.log('Need valid access token');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v2/items/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v2", "items", "1"]
+            },
+            "description": "Delete item by ID.\n\n**Authentication Required:**\n- Authorization: Bearer {{accessToken}}\n\n**Response (204):**\nNo content (successful deletion)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Testing Scenarios",
+      "item": [
+        {
+          "name": "Scenario 1: Full Auth Flow",
+          "item": [
+            {
+              "name": "Step 1: Register",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"scenario1@example.com\",\n  \"password\": \"ScenarioPass123\",\n  \"passwordConfirm\": \"ScenarioPass123\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3000/auth/register",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["auth", "register"]
+                }
+              }
+            },
+            {
+              "name": "Step 2: Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"scenario1@example.com\",\n  \"password\": \"ScenarioPass123\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3000/auth/login",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["auth", "login"]
+                }
+              }
+            },
+            {
+              "name": "Step 3: Get Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:3000/auth/me",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["auth", "me"]
+                }
+              }
+            },
+            {
+              "name": "Step 4: Create Item",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"device\": \"Thermostat\",\n  \"status\": \"on\",\n  \"room\": \"Hallway\",\n  \"description\": \"Temperature control\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3000/api/v2/items",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["api", "v2", "items"]
+                }
+              }
+            },
+            {
+              "name": "Step 5: Logout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:3000/auth/logout",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["auth", "logout"]
+                }
+              }
+            },
+            {
+              "name": "Step 6: Verify Token Blacklisted",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:3000/auth/me",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["auth", "me"]
+                },
+                "description": "Should return 401 because token was blacklisted during logout"
+              }
+            }
+          ],
+          "description": "Execute this sequence to test complete authentication flow:\n1. Create new user account\n2. Login and get access token\n3. View user profile\n4. Create protected resource\n5. Logout (blacklist token)\n6. Verify token no longer works"
+        },
+        {
+          "name": "Scenario 2: Token Expiration & Refresh",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"TestPassword123\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3000/auth/login",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["auth", "login"]
+                }
+              }
+            },
+            {
+              "name": "Use Protected Route (token valid)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"device\": \"Lamp\",\n  \"status\": \"on\",\n  \"room\": \"Bedroom\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:3000/api/v2/items",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["api", "v2", "items"]
+                }
+              }
+            },
+            {
+              "name": "Wait (simulating token expiration)",
+              "description": "In real scenario, wait 15 minutes for token to expire. For testing, proceed to refresh."
+            },
+            {
+              "name": "Refresh Access Token",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:3000/auth/refresh",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["auth", "refresh"]
+                }
+              }
+            },
+            {
+              "name": "Use Protected Route Again (new token)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "http://localhost:3000/auth/me",
+                  "protocol": "http",
+                  "host": ["localhost"],
+                  "port": "3000",
+                  "path": ["auth", "me"]
+                }
+              }
+            }
+          ],
+          "description": "Test the token refresh workflow:\n1. Login to get initial access token (15 min TTL)\n2. Use protected route successfully\n3. When token expires, call /auth/refresh\n4. Receive new access token\n5. Use protected route with new token"
+        }
+      ]
+    }
+  ]
+}

@@ -12,7 +12,7 @@ export const envSchema = {
     "MYSQL_DB",
     "REDIS_HOST",
     "REDIS_PORT",
-    "SESSION_SECRET",
+    "JWT_SECRET",
   ],
   properties: {
     PORT: { type: "string", pattern: "^[0-9]+$" },
@@ -27,6 +27,7 @@ export const envSchema = {
     REDIS_URL: { type: "string", minLength: 1 },
     REDIS_HOST: { type: "string", minLength: 1 },
     REDIS_PORT: { type: "string", pattern: "^[0-9]+$" },
+    JWT_SECRET: { type: "string", minLength: 32 },
     SESSION_SECRET: { type: "string", minLength: 32 },
     EXTERNAL_BASE_URL: { type: "string", minLength: 1 },
     GITHUB_TOKEN: { type: "string", minLength: 1 },

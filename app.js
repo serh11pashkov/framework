@@ -7,12 +7,11 @@ import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import fastifyRedis from "@fastify/redis";
 import fastifyCookie from "@fastify/cookie";
-import fastifySession from "@fastify/session";
+import fastifyJwt from "@fastify/jwt";
 import fastifyRateLimit from "@fastify/rate-limit";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import fastifyWebsocket from "@fastify/websocket";
-import RedisStore from "fastify-session-redis-store";
 import path from "path";
 import mysqlPlugin from "./db/mysql.js";
 import drizzlePlugin from "./db/drizzle.js";
@@ -54,19 +53,21 @@ export const buildApp = async () => {
     closeClient: true,
   });
 
-  // Cookie (must be before session)
+  // Cookie (for refresh token)
   await fastify.register(fastifyCookie);
 
-  // Session with Redis store
-  await fastify.register(fastifySession, {
-    secret: fastify.config.SESSION_SECRET,
-    store: new RedisStore({ client: fastify.redis }),
-    cookie: {
-      httpOnly: true,
-      secure: fastify.config.NODE_ENV === "production",
-      maxAge: 86400000, // 24 hours
+  // JWT with blacklist support via Redis
+  await fastify.register(fastifyJwt, {
+    secret: fastify.config.JWT_SECRET,
+    sign: { expiresIn: "15m" },
+    trusted: async (request, decodedToken) => {
+      // Check if token is blacklisted
+      if (!decodedToken.jti) return true;
+      const isBlacklisted = await fastify.redis.get(
+        `blacklist:${decodedToken.jti}`
+      );
+      return !isBlacklisted;
     },
-    saveUninitialized: false,
   });
 
   // Rate limit with Redis store
@@ -136,12 +137,16 @@ export const buildApp = async () => {
   // Auth service
   fastify.decorate("authService", createAuthService({ db: fastify.db }));
 
-  // Auth decorator
-  fastify.decorate("authenticate", async (request, reply) => {
-    if (!request.session.userId) {
+  // JWT auth hook - used in onRequest
+  async function verifyJwt(request, reply) {
+    try {
+      await request.jwtVerify();
+    } catch (error) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
-  });
+  }
+
+  fastify.decorate("verifyJwt", verifyJwt);
 
   await fastify.register(fastifyStatic, {
     root: path.join(process.cwd(), "uploads"),
