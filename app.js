@@ -64,7 +64,7 @@ export const buildApp = async () => {
       // Check if token is blacklisted
       if (!decodedToken.jti) return true;
       const isBlacklisted = await fastify.redis.get(
-        `blacklist:${decodedToken.jti}`
+        `blacklist:${decodedToken.jti}`,
       );
       return !isBlacklisted;
     },

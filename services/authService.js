@@ -20,12 +20,10 @@ export const createAuthService = ({ db } = {}) => {
       const hashedPassword = await argon2.hash(password);
 
       // Insert user
-      const result = await db
-        .insert(users)
-        .values({
-          email,
-          password: hashedPassword,
-        });
+      const result = await db.insert(users).values({
+        email,
+        password: hashedPassword,
+      });
 
       return {
         id: result.insertId || 1,

@@ -33,7 +33,7 @@ export default async function authRoutes(fastify) {
         }
         throw error;
       }
-    }
+    },
   );
 
   // Login - returns access token + refresh token in cookie
@@ -42,7 +42,8 @@ export default async function authRoutes(fastify) {
     {
       schema: {
         tags: ["auth"],
-        description: "Login user and receive access token + refresh token cookie",
+        description:
+          "Login user and receive access token + refresh token cookie",
         body: loginSchema,
         response: {
           200: {
@@ -64,12 +65,12 @@ export default async function authRoutes(fastify) {
         const jti = randomUUID();
         const accessToken = await reply.jwtSign(
           { sub: user.id, email: user.email, jti },
-          { expiresIn: "15m" }
+          { expiresIn: "15m" },
         );
 
         const refreshToken = await reply.jwtSign(
           { sub: user.id, email: user.email, type: "refresh" },
-          { expiresIn: "7d" }
+          { expiresIn: "7d" },
         );
 
         // Store refresh token in Redis for validation/revocation
@@ -77,7 +78,7 @@ export default async function authRoutes(fastify) {
           `refresh:${user.id}`,
           refreshToken,
           "EX",
-          604800 // 7 days
+          604800, // 7 days
         );
 
         // Set refresh token in httpOnly cookie
@@ -96,7 +97,7 @@ export default async function authRoutes(fastify) {
         }
         throw error;
       }
-    }
+    },
   );
 
   // Refresh - issue new access token using refresh token from cookie
@@ -105,8 +106,7 @@ export default async function authRoutes(fastify) {
     {
       schema: {
         tags: ["auth"],
-        description:
-          "Refresh access token using refresh token from cookie",
+        description: "Refresh access token using refresh token from cookie",
         response: {
           200: {
             type: "object",
@@ -129,9 +129,7 @@ export default async function authRoutes(fastify) {
         const decoded = await fastify.jwt.verify(refreshToken);
 
         // Check if stored in Redis (not revoked)
-        const storedToken = await fastify.redis.get(
-          `refresh:${decoded.sub}`
-        );
+        const storedToken = await fastify.redis.get(`refresh:${decoded.sub}`);
         if (!storedToken || storedToken !== refreshToken) {
           return reply.status(401).send({ error: "Invalid refresh token" });
         }
@@ -140,14 +138,14 @@ export default async function authRoutes(fastify) {
         const jti = randomUUID();
         const newAccessToken = await reply.jwtSign(
           { sub: decoded.sub, email: decoded.email, jti },
-          { expiresIn: "15m" }
+          { expiresIn: "15m" },
         );
 
         return reply.status(200).send({ accessToken: newAccessToken });
       } catch (error) {
         return reply.status(401).send({ error: "Invalid refresh token" });
       }
-    }
+    },
   );
 
   // Logout - blacklist access token and revoke refresh token
@@ -185,7 +183,7 @@ export default async function authRoutes(fastify) {
       reply.clearCookie("refreshToken", { path: "/auth/refresh" });
 
       return reply.status(204).send();
-    }
+    },
   );
 
   // Get current user - requires valid access token
@@ -214,6 +212,6 @@ export default async function authRoutes(fastify) {
         return reply.status(404).send({ error: "User not found" });
       }
       return reply.send(user);
-    }
+    },
   );
 }
