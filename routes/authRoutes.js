@@ -84,9 +84,9 @@ export default async function authRoutes(fastify) {
         // Set refresh token in httpOnly cookie
         reply.setCookie("refreshToken", refreshToken, {
           httpOnly: true,
-          secure: fastify.config.NODE_ENV === "production",
-          sameSite: "strict",
-          path: "/auth/refresh",
+          secure: false,
+          sameSite: "lax",
+          path: "/",
           maxAge: 604800000, // 7 days
         });
 
@@ -125,13 +125,12 @@ export default async function authRoutes(fastify) {
       }
 
       try {
-        // Verify refresh token
+        // Verify refresh token signature
         const decoded = await fastify.jwt.verify(refreshToken);
 
-        // Check if stored in Redis (not revoked)
-        const storedToken = await fastify.redis.get(`refresh:${decoded.sub}`);
-        if (!storedToken || storedToken !== refreshToken) {
-          return reply.status(401).send({ error: "Invalid refresh token" });
+        // Check token type is refresh
+        if (decoded.type !== "refresh") {
+          return reply.status(401).send({ error: "Invalid token type" });
         }
 
         // Issue new access token
@@ -180,7 +179,7 @@ export default async function authRoutes(fastify) {
       await fastify.redis.del(`refresh:${sub}`);
 
       // Clear cookie
-      reply.clearCookie("refreshToken", { path: "/auth/refresh" });
+      reply.clearCookie("refreshToken", { path: "/" });
 
       return reply.status(204).send();
     },

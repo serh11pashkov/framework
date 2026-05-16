@@ -38,6 +38,8 @@ export const buildApp = async () => {
   await fastify.register(fastifyCors, {
     origin: "*",
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   });
   await fastify.register(fastifySensible);
 
