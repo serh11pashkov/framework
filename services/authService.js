@@ -52,6 +52,7 @@ export const createAuthService = ({ db } = {}) => {
       }
 
       // Return user without password
+      // eslint-disable-next-line no-unused-vars
       const { password: _, ...userWithoutPassword } = user;
       return userWithoutPassword;
     },
@@ -69,6 +70,7 @@ export const createAuthService = ({ db } = {}) => {
 
       const user = userList[0];
       // Return without password
+      // eslint-disable-next-line no-unused-vars
       const { password: _, ...userWithoutPassword } = user;
       return userWithoutPassword;
     },

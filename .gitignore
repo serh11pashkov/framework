@@ -9,3 +9,4 @@ data/backups/*
 !data/backups/.gitkeep
 uploads/*
 !uploads/.gitkeep
+coverage/

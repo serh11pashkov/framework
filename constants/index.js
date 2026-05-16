@@ -1,5 +1,5 @@
 export const ALLOWED_STATUSES = ["on", "off"];
-export const ALLOWED_NODE_ENVS = ["development", "production"];
+export const ALLOWED_NODE_ENVS = ["development", "test", "production"];
 
 export const MESSAGES = {
   NOT_FOUND: "Device not found",

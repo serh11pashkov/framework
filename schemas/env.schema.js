@@ -17,14 +17,20 @@ export const envSchema = {
   properties: {
     PORT: { type: "string", pattern: "^[0-9]+$" },
     HOSTNAME: { type: "string", minLength: 1 },
-    NODE_ENV: { type: "string", enum: ["development", "production"] },
+    NODE_ENV: {
+      type: "string",
+      enum: ["development", "production", "test"],
+    },
     ADMIN_API_KEY: { type: "string", minLength: 1 },
     MYSQL_HOST: { type: "string", minLength: 1 },
     MYSQL_PORT: { type: "string", pattern: "^[0-9]+$" },
     MYSQL_USER: { type: "string", minLength: 1 },
     MYSQL_PASSWORD: { type: "string", minLength: 1 },
     MYSQL_DB: { type: "string", minLength: 1 },
-    REDIS_URL: { type: "string", minLength: 1 },
+    REDIS_URL: {
+      type: "string",
+      anyOf: [{ minLength: 1 }, { maxLength: 0 }],
+    },
     REDIS_HOST: { type: "string", minLength: 1 },
     REDIS_PORT: { type: "string", pattern: "^[0-9]+$" },
     JWT_SECRET: { type: "string", minLength: 32 },

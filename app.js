@@ -38,8 +38,6 @@ export const buildApp = async () => {
   await fastify.register(fastifyCors, {
     origin: "*",
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"],
   });
   await fastify.register(fastifySensible);
 
@@ -143,7 +141,8 @@ export const buildApp = async () => {
   async function verifyJwt(request, reply) {
     try {
       await request.jwtVerify();
-    } catch (error) {
+      // eslint-disable-next-line no-unused-vars
+    } catch (_) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
   }
