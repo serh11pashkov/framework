@@ -1,4 +1,7 @@
+import { loadEnvFile } from "../utils/loadEnvFile.js";
 import { connectMysql } from "./mysql.js";
+
+loadEnvFile(".env");
 
 const logger = {
   info: (...args) => console.log(...args),

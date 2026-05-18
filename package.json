@@ -30,9 +30,9 @@
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run format:check",
     "db:generate": "drizzle-kit generate --config drizzle.config.js",
-    "db:migrate": "node -r dotenv/config db/init.js && npx drizzle-kit migrate --config drizzle.config.js",
-    "seed": "node -r dotenv/config scripts/seed.js",
-    "seed:force": "node -r dotenv/config scripts/seed.js --force",
+    "db:migrate": "node db/init.js && npx drizzle-kit migrate --config drizzle.config.js",
+    "seed": "node scripts/seed.js",
+    "seed:force": "node scripts/seed.js --force",
     "migrate": "npm run db:migrate"
   },
   "dependencies": {
@@ -54,6 +54,7 @@
     "crypto": "^1.0.1",
     "csv-parse": "^6.2.1",
     "csv-stringify": "^6.7.0",
+    "dotenv": "^16.4.5",
     "drizzle-orm": "^0.44.7",
     "fastify": "^5.8.2",
     "fastify-plugin": "^5.1.0",
@@ -67,7 +68,6 @@
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
-    "dotenv": "^16.4.5",
     "globals": "^15.0.0",
     "json-server": "^1.0.0-beta.15",
     "nodemon": "^3.1.0",

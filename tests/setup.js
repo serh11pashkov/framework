@@ -1,3 +1,3 @@
-import { config } from "dotenv";
+import { loadEnvFile } from "../utils/loadEnvFile.js";
 
-config({ path: ".env.test" });
+loadEnvFile(".env.test", { override: true });

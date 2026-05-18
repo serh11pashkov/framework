@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./tests/setup.js"],
+    fileParallelism: false,
     include: ["tests/**/*.test.js"],
     coverage: {
       provider: "v8",

@@ -1,5 +1,7 @@
-import "dotenv/config";
+import { loadEnvFile } from "./utils/loadEnvFile.js";
 import { defineConfig } from "drizzle-kit";
+
+loadEnvFile(".env");
 
 export default defineConfig({
   dialect: "mysql",

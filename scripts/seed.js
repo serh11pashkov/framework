@@ -1,3 +1,4 @@
+import { loadEnvFile } from "../utils/loadEnvFile.js";
 import { connectMysql } from "../db/mysql.js";
 import { createDrizzleDb, wireDeviceRepository } from "../db/drizzle.js";
 import {
@@ -53,6 +54,8 @@ const logger = {
   info: (...args) => console.log(...args),
   error: (...args) => console.error(...args),
 };
+
+loadEnvFile(".env");
 
 const run = async () => {
   const force = process.argv.includes("--force");

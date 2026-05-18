@@ -9,5 +9,4 @@ coverage/
 Dockerfile*
 docker-compose*.yml
 *.log
-scripts/
 dist/
